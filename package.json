@@ -1,5 +1,5 @@
 {
-  "name": "hermes-profile-manager",
+  "name": "@hotcode/hermes-profile-manager",
   "version": "0.1.0",
   "description": "Hermes agent profile manager: merge configs, jobs, SOUL prompts, and manage symlinks",
   "type": "module",
