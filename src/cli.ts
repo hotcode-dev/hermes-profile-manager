@@ -6,6 +6,7 @@ import { mergeJobs } from './core/jobs.js';
 import { mergeSoul } from './core/soul.js';
 import { linkSkills, linkPlugins, linkHermes } from './core/links.js';
 import { mergeAll, linkAll, syncAll } from './core/sync.js';
+import { initWorkspace } from './core/init.js';
 
 const program = new Command();
 
@@ -32,6 +33,37 @@ function getOptions(cmd: any) {
   };
 }
 
+// Command: init
+program
+  .command('init [targetDir]')
+  .description('Initialize a new Hermes profile workspace scaffolding')
+  .option('-p, --profile <name>', 'Initial agent profile name', 'main')
+  .option('-f, --force', 'Overwrite existing files if they exist', false)
+  .option('--no-sync', 'Do not run sync immediately after initialization')
+  .action((targetDir, cmdOpts) => {
+    const logger = program.opts().quiet ? () => {} : console.log;
+    const result = initWorkspace({
+      targetDir: targetDir || process.cwd(),
+      profileName: cmdOpts.profile,
+      force: cmdOpts.force,
+      runSync: cmdOpts.sync,
+      logger
+    });
+
+    if (!program.opts().quiet) {
+      console.log(`\n✓ Successfully initialized Hermes profiles in ${result.targetDir}`);
+      console.log(`  - Profile created: ${result.profileName}`);
+      console.log(`  - Files created: ${result.createdFiles.length}`);
+      if (result.skippedFiles.length > 0) {
+        console.log(`  - Files skipped (already existed): ${result.skippedFiles.length}`);
+      }
+      console.log('\nNext steps:');
+      console.log(`  1. Customize profiles/common/config.yaml and profiles/${result.profileName}/config.custom.yaml`);
+      console.log(`  2. Customize profiles/${result.profileName}/SOUL.custom.md`);
+      console.log('  3. Run "hpm sync" to recompile when modifying configuration files.');
+    }
+  });
+
 // Command: sync / all
 program
   .command('sync')
@@ -47,7 +79,7 @@ program
   });
 
 // Command: merge
-const mergeCmd = program
+program
   .command('merge [target]')
   .description('Merge profiles resources: all, config, jobs, or soul')
   .action((target, cmdOpts) => {
@@ -84,7 +116,7 @@ const mergeCmd = program
   });
 
 // Command: link
-const linkCmd = program
+program
   .command('link [target]')
   .description('Link shared resources: all, skills, plugins, or hermes')
   .action((target, cmdOpts) => {

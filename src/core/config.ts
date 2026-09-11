@@ -66,7 +66,7 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
 
     try {
       const customRaw = fs.readFileSync(customConfigPath, 'utf8');
-      const customParsed = parseYaml(customRaw);
+      const customParsed = parseYaml(customRaw) ?? {};
 
       if (!isPlainObject(customParsed)) {
         throw new Error(`Custom config is not a valid YAML object: ${customConfigPath}`);

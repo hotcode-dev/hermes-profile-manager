@@ -66,6 +66,22 @@ profiles/
 
 The CLI is available as both `hpm` and `hermes-pm`.
 
+### Initialize a New Workspace
+
+```bash
+# Initialize a workspace in the current directory (default profile: "main")
+hpm init
+
+# Initialize in a specific directory with a custom agent profile name
+hpm init ./my-project --profile orchestrator
+
+# Overwrite existing configuration files
+hpm init --force
+
+# Initialize without running immediate sync
+hpm init --no-sync
+```
+
 ### Compound Commands
 
 ```bash
