@@ -14,7 +14,7 @@
     }
   },
   "bin": {
-    "hermes-pm": "./dist/cli.js",
+    "hermes-profile-manager": "./dist/cli.js",
     "hpm": "./dist/cli.js"
   },
   "files": [

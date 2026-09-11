@@ -11,7 +11,7 @@ import { initWorkspace } from './core/init.js';
 const program = new Command();
 
 program
-  .name('hermes-pm')
+  .name('hermes-profile-manager')
   .description('Hermes agent profile manager: merge configs, jobs, SOUL prompts, and manage symlinks')
   .version('0.1.0')
   .option('-r, --root <path>', 'Path to repository root (auto-detected by default)')

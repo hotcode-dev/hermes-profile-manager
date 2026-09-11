@@ -12,7 +12,7 @@ A fast, zero-system-dependency manager and CLI for Hermes AI agent profiles.
 - 🔄 **Safe Atomic Operations**: Atomic writes ensure configurations are never left corrupted in case of an interrupt.
 - 🔗 **Portable Symlinks**: Automatically generates relative symlinks for intra-repo skills and plugins (`../../common/skills/*`), keeping profiles portable across different machines and paths.
 - 🎯 **Smart Root Discovery**: Automatically discovers the repository root by locating `profiles/common` from your current working directory.
-- 🛠 **Dual Interface**: Full-featured CLI (`hpm` / `hermes-pm`) and an exportable programmatic TypeScript/ESM API.
+- 🛠 **Dual Interface**: Full-featured CLI (`hpm` / `hermes-profile-manager`) and an exportable programmatic TypeScript/ESM API.
 - 🧪 **Fully Tested**: Comprehensive test suite ensuring 100% compatibility with Hermes profile layouts.
 
 ---
@@ -64,7 +64,7 @@ profiles/
 
 ## CLI Usage
 
-The CLI is available as both `hpm` and `hermes-pm`.
+The CLI is available as both `hpm` and `hermes-profile-manager`.
 
 ### Initialize a New Workspace
 
