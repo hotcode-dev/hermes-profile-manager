@@ -1,0 +1,63 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { parse as parseYaml } from 'yaml';
+import { mergeConfig } from '../src/core/config.js';
+
+describe('mergeConfig', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-config-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('merges common config and profile custom config', () => {
+    // Setup profiles/common/config.yaml
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `
+name: common
+models:
+  - name: default
+    provider: openai
+    model: gpt-4
+timeout: 30
+`);
+
+    // Setup profiles/worker/config.custom.yaml
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+    fs.writeFileSync(path.join(workerDir, 'config.custom.yaml'), `
+name: worker
+tools:
+  - terminal
+  - web
+timeout: 60
+`);
+
+    const results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'worker');
+    assert.equal(results[0].status, 'merged');
+
+    const outputContent = fs.readFileSync(path.join(workerDir, 'config.yaml'), 'utf8');
+    const parsed = parseYaml(outputContent);
+
+    assert.equal(parsed.name, 'worker');
+    assert.equal(parsed.timeout, 60);
+    assert.deepEqual(parsed.tools, ['terminal', 'web']);
+    assert.equal(parsed.models[0].model, 'gpt-4');
+  });
+
+  it('throws when common config is missing', () => {
+    assert.throws(() => {
+      mergeConfig({ rootDir: tmpDir, logger: () => {} });
+    }, /Common config not found/);
+  });
+});

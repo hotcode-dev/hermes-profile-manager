@@ -1,0 +1,50 @@
+{
+  "name": "hermes-profile-manager",
+  "version": "0.1.0",
+  "description": "Hermes agent profile manager: merge configs, jobs, SOUL prompts, and manage symlinks",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "hermes-pm": "./dist/cli.js",
+    "hpm": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "hermes",
+    "hermes-agent",
+    "profiles",
+    "profile-manager",
+    "cli"
+  ],
+  "author": "hotcode-dev",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "yaml": "^2.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.0.2",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.5"
+  }
+}
