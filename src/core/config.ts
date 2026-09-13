@@ -9,6 +9,14 @@ export interface MergeConfigOptions {
   profiles?: string[];
   logger?: (msg: string) => void;
   dryRun?: boolean;
+  /**
+   * When true, a run where no profile has a valid config.custom.yaml source is
+   * treated as a successful no-op (returns the per-profile skipped/error
+   * results) instead of throwing. Used by the aggregate sync path; standalone
+   * CLI calls keep the default (false) and still surface the "nothing to
+   * merge" error.
+   */
+  allowEmpty?: boolean;
 }
 
 export interface MergeConfigResult {
@@ -100,6 +108,9 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
 
   const mergedCount = results.filter((r) => r.status === 'merged').length;
   if (mergedCount === 0 && !options.profiles) {
+    if (options.allowEmpty) {
+      return results;
+    }
     throw new Error(`No profiles with valid config.custom.yaml could be merged under ${profilesDir}`);
   }
 

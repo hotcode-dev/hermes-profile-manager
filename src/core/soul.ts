@@ -7,6 +7,13 @@ export interface MergeSoulOptions {
   profiles?: string[];
   logger?: (msg: string) => void;
   dryRun?: boolean;
+  /**
+   * When true, a run where no profile has a SOUL.custom.md source is treated
+   * as a successful no-op (returns an empty result list) instead of throwing.
+   * Used by the aggregate sync path; standalone CLI calls keep the default
+   * (false) and still surface the "nothing to merge" error.
+   */
+  allowEmpty?: boolean;
 }
 
 export interface MergeSoulResult {
@@ -79,6 +86,9 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
   }
 
   if (!foundAnyCustom) {
+    if (options.allowEmpty) {
+      return results;
+    }
     throw new Error(`Error: no profiles with SOUL.custom.md found under ${profilesDir}`);
   }
 
