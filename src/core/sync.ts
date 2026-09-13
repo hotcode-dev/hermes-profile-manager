@@ -16,10 +16,18 @@ export interface SyncAllResult {
   hermesLink?: LinkResult;
 }
 
+/**
+ * Runs the three sub-merges (config, jobs, soul) over all profiles.
+ * Each sub-merge is run with `allowEmpty: true` so that a workspace that
+ * happens to have no custom source for a given concern (e.g. no
+ * cron/jobs.custom.json anywhere) is a successful no-op for that concern
+ * rather than a hard error that aborts the rest of the aggregate.
+ */
 export function mergeAll(options: SyncOptions = {}): { config: MergeConfigResult[]; jobs: MergeJobsResult[]; soul: MergeSoulResult[] } {
-  const config = mergeConfig(options);
-  const jobs = mergeJobs(options);
-  const soul = mergeSoul(options);
+  const baseOptions = { ...options, allowEmpty: true };
+  const config = mergeConfig(baseOptions);
+  const jobs = mergeJobs(baseOptions);
+  const soul = mergeSoul(baseOptions);
   return { config, jobs, soul };
 }
 

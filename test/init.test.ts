@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { parse as parseYaml } from 'yaml';
 import { initWorkspace } from '../src/core/init.js';
 
 describe('initWorkspace', () => {
@@ -73,5 +74,62 @@ describe('initWorkspace', () => {
     });
 
     assert.equal(thirdResult.createdFiles.length, 5);
+  });
+
+  it('completes auto-sync without a warning when no profile has cron/jobs.custom.json', () => {
+    // Scaffold the initial profile (which normally includes jobs.custom.json).
+    initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: false,
+      logger: () => {}
+    });
+
+    // Simulate a valid-but-common workspace with config + soul customization
+    // but NO cron jobs: the initial profile has no cron/jobs.custom.json, and
+    // we add an additional profile that likewise lacks one.
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'cron', 'jobs.custom.json'), { force: true });
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(workerDir, 'config.custom.yaml'),
+      `temperature: 0.2\n`
+    );
+    fs.writeFileSync(
+      path.join(workerDir, 'SOUL.custom.md'),
+      '# Worker Identity\n'
+    );
+    // No cron/jobs.custom.json for worker either.
+
+    const logs: string[] = [];
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: true,
+      logger: (msg) => logs.push(msg)
+    });
+
+    // Before the fix, syncAll threw "no profiles with cron/jobs.custom.json
+    // found" and init swallowed it into a "Warning during initial sync: ..."
+    // line. After the fix there is no warning and a real syncResult is set.
+    assert.ok(
+      !logs.some((l) => l.includes('Warning during initial sync')),
+      `unexpected sync warning captured: ${JSON.stringify(logs)}`
+    );
+
+    assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
+    // The initial profile was re-scaffolded by this run (ensureFile recreates
+    // the missing cron/jobs.custom.json), so its jobs merge legitimately
+    // appears; the point is that the worker profile lacking any cron source is
+    // a benign no-op rather than an aborting error.
+    const mainJobs = result.syncResult.jobs.find((r) => r.profile === 'main');
+    assert.equal(mainJobs?.status, 'merged');
+    assert.ok(!result.syncResult.jobs.some((r) => r.profile === 'worker'));
+    // config for the additional profile was merged as part of the aggregate.
+    const workerConfig = path.join(workerDir, 'config.yaml');
+    assert.ok(fs.existsSync(workerConfig));
+    const parsed = parseYaml(fs.readFileSync(workerConfig, 'utf8'));
+    assert.equal(parsed.temperature, 0.2);
   });
 });
