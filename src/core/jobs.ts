@@ -77,7 +77,13 @@ export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocumen
   }
 
   for (const cJob of customJobs) {
-    if (cJob && cJob.id != null && !baseIds.has(String(cJob.id))) {
+    if (!cJob) continue;
+    if (cJob.id == null) {
+      // Jobs without an id cannot be matched against base ids; always keep them.
+      mergedJobs.push({ ...cJob });
+      continue;
+    }
+    if (!baseIds.has(String(cJob.id))) {
       mergedJobs.push({ ...cJob });
     }
   }

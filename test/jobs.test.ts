@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { mergeJobs } from '../src/core/jobs.js';
+import { mergeJobs, mergeJobsDocuments } from '../src/core/jobs.js';
 
 describe('mergeJobs', () => {
   let tmpDir: string;
@@ -66,5 +66,99 @@ describe('mergeJobs', () => {
     const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
     assert.equal(output.jobs.length, 1);
     assert.equal(output.jobs[0].id, '99');
+  });
+});
+
+describe('mergeJobsDocuments', () => {
+  it('preserves custom jobs that have no id', () => {
+    const base = { jobs: [{ id: '1', name: 'base_job' }] };
+    const custom = {
+      jobs: [
+        { id: '2', name: 'with_id' },
+        { name: 'no_id_job', schedule: '0 0 * * *' }
+      ]
+    };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const jobs = merged.jobs ?? [];
+    const ids = jobs.map((j) => j.id);
+    const names = jobs.map((j) => j.name);
+
+    assert.deepEqual(ids, ['1', '2', undefined]);
+    assert.deepEqual(names, ['base_job', 'with_id', 'no_id_job']);
+    const noIdJob = jobs.find((j) => j.name === 'no_id_job');
+    assert.ok(noIdJob);
+    assert.equal(noIdJob.schedule, '0 0 * * *');
+  });
+
+  it('preserves id-less jobs in a top-level array document', () => {
+    // normalizeJobsDoc (not exported) wraps top-level arrays into { jobs: [...] };
+    // exercise that path end-to-end through a real jobs.custom.json file.
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-jobs-array-'));
+    const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
+    try {
+      fs.mkdirSync(cronDir, { recursive: true });
+      fs.writeFileSync(path.join(cronDir, 'jobs.json'), JSON.stringify({
+        jobs: [{ id: '1', name: 'base_job' }]
+      }));
+      fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify([
+        { name: 'array_no_id', schedule: '0 1 * * *' },
+        { id: '5', name: 'array_with_id' }
+      ]));
+
+      const results = mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+      assert.equal(results.length, 1);
+      assert.equal(results[0].status, 'merged');
+
+      const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+      const names = output.jobs.map((j: any) => j.name);
+      assert.deepEqual(names, ['base_job', 'array_no_id', 'array_with_id']);
+      const noId = output.jobs.find((j: any) => j.name === 'array_no_id');
+      assert.equal(noId.schedule, '0 1 * * *');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('still applies id-based override and append semantics', () => {
+    const base = {
+      jobs: [
+        { id: '1', name: 'base_job', schedule: '0 */4 * * *' },
+        { id: '3', name: 'base_only_job' }
+      ]
+    };
+    const custom = {
+      jobs: [
+        { id: '2', name: 'custom_job' },
+        { id: '1', name: 'overridden_job', schedule: '0 */3 * * *' }
+      ]
+    };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const jobs = merged.jobs ?? [];
+    assert.equal(jobs.length, 3);
+
+    const job1 = jobs.find((j) => j.id === '1');
+    assert.ok(job1);
+    assert.equal(job1.name, 'overridden_job');
+    assert.equal(job1.schedule, '0 */3 * * *');
+
+    const job2 = jobs.find((j) => j.id === '2');
+    assert.ok(job2);
+    assert.equal(job2.name, 'custom_job');
+
+    const job3 = jobs.find((j) => j.id === '3');
+    assert.ok(job3);
+    assert.equal(job3.name, 'base_only_job');
+  });
+
+  it('preserves id-less base jobs and appends id-less custom jobs alongside them', () => {
+    const base = { jobs: [{ name: 'base_no_id' }, { id: '1', name: 'base_job' }] };
+    const custom = { jobs: [{ name: 'custom_no_id' }] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const names = (merged.jobs ?? []).map((j) => j.name);
+
+    assert.deepEqual(names, ['base_no_id', 'base_job', 'custom_no_id']);
   });
 });
