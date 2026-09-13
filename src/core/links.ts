@@ -52,7 +52,7 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
       const linkPath = path.join(profileSkillsDir, skillName);
 
       if (!options.dryRun) {
-        ensureSymlinkSync(targetRel, linkPath);
+        ensureSymlinkSync(targetRel, linkPath, { logger: log });
       }
 
       log(`Linked ${skillName} to ${profile} profile`);
@@ -104,7 +104,7 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
       const linkPath = path.join(profilePluginsDir, pluginName);
 
       if (!options.dryRun) {
-        ensureSymlinkSync(targetRel, linkPath);
+        ensureSymlinkSync(targetRel, linkPath, { logger: log });
       }
 
       log(`Linked ${pluginName} to ${profile} profile`);
@@ -124,7 +124,7 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     const linkPath = path.join(hermesPluginsDir, pluginName);
 
     if (!options.dryRun) {
-      ensureSymlinkSync(pluginSource, linkPath);
+      ensureSymlinkSync(pluginSource, linkPath, { logger: log });
     }
 
     log(`Linked ${pluginName} to ${hermesPluginsDir}`);
@@ -155,7 +155,7 @@ export function linkHermes(options: LinkOptions = {}): LinkResult {
   }
 
   if (!options.dryRun) {
-    ensureSymlinkSync(profilesSrc, hermesProfilesDest);
+    ensureSymlinkSync(profilesSrc, hermesProfilesDest, { logger: log });
   }
 
   log(`Linked Hermes profiles to ${hermesDir}`);
