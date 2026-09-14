@@ -95,6 +95,19 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     assert.ok(!fs.existsSync(path.join(mainDir, 'config.yaml')));
   });
 
+  it('completes without throwing when profiles dir has NO profile subdirs (config/jobs/soul all empty no-ops)', () => {
+    scaffoldCommon(tmpDir);
+    // Deliberately no profile subdirs other than common.
+
+    // Regression target: mergeAll/syncAll used to throw "No profiles found
+    // under .../profiles" from the standalone config guard, even though the
+    // aggregate path forces allowEmpty: true (jobs/soul were already no-op).
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.deepEqual(result.config, []);
+    assert.deepEqual(result.jobs, []);
+    assert.deepEqual(result.soul, []);
+  });
+
   it('mergeAll propagates no-throw semantics without touching links', () => {
     scaffoldCommon(tmpDir);
     const mainDir = path.join(tmpDir, 'profiles', 'main');
