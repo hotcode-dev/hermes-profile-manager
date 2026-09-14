@@ -51,7 +51,7 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
     ? options.profiles
     : availableProfiles;
 
-  if (targetProfiles.length === 0) {
+  if (targetProfiles.length === 0 && !options.allowEmpty) {
     throw new Error(`No profiles found under ${profilesDir}`);
   }
 

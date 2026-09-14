@@ -60,4 +60,23 @@ timeout: 60
       mergeConfig({ rootDir: tmpDir, logger: () => {} });
     }, /Common config not found/);
   });
+
+  it('returns [] without throwing when allowEmpty is true and profiles dir has no profile subdirs', () => {
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    // No profile subdirs besides common.
+    const results = mergeConfig({ rootDir: tmpDir, allowEmpty: true, logger: () => {} });
+    assert.deepEqual(results, []);
+  });
+
+  it('still throws "No profiles found" when allowEmpty is falsy and there are no profile subdirs', () => {
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, logger: () => {} }),
+      /No profiles found under/
+    );
+  });
 });
