@@ -106,15 +106,15 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
 
   if (runSync) {
     log('\nRunning initial sync to compile profile configurations...');
-    try {
-      result.syncResult = syncAll({
-        rootDir: targetDir,
-        logger: log
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log(`Warning during initial sync: ${msg}`);
-    }
+    // syncAll records per-profile merge failures as `status: 'error'` entries
+    // in the returned arrays and captures link failures into
+    // `result.linkErrors` (it does not abort on those), so the result here is
+    // the failure signal: the CLI inspects it to gate the success banner and
+    // exit code, matching the `sync` / `merge-all` contract.
+    result.syncResult = syncAll({
+      rootDir: targetDir,
+      logger: log
+    });
   }
 
   return result;

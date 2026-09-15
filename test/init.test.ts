@@ -110,9 +110,9 @@ describe('initWorkspace', () => {
       logger: (msg) => logs.push(msg)
     });
 
-    // Before the fix, syncAll threw "no profiles with cron/jobs.custom.json
-    // found" and init swallowed it into a "Warning during initial sync: ..."
-    // line. After the fix there is no warning and a real syncResult is set.
+    // The initial sync never throws (syncAll records failures in the
+    // returned result instead of throwing), so there is no warning line and
+    // a real syncResult is set.
     assert.ok(
       !logs.some((l) => l.includes('Warning during initial sync')),
       `unexpected sync warning captured: ${JSON.stringify(logs)}`
@@ -131,5 +131,59 @@ describe('initWorkspace', () => {
     assert.ok(fs.existsSync(workerConfig));
     const parsed = parseYaml(fs.readFileSync(workerConfig, 'utf8'));
     assert.equal(parsed.temperature, 0.2);
+  });
+
+  it('records a broken top-level common config in syncResult.syncError instead of throwing or warning', () => {
+    // Seed the workspace, then corrupt the shared common config into a
+    // non-object YAML document (a list). init must not overwrite it
+    // (no force), and the initial sync must surface the failure through
+    // result.syncResult.syncError — not a throw, not a swallowed warning.
+    initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: false,
+      logger: () => {}
+    });
+
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      '- just\n- a\n- list\n'
+    );
+
+    const logs: string[] = [];
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: true,
+      logger: (msg) => logs.push(msg)
+    });
+
+    assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
+    assert.match(
+      result.syncResult.syncError ?? '',
+      /Common config must be a YAML object/
+    );
+    // The merge step aborted before the profiles, so the arrays are empty.
+    assert.equal(result.syncResult.config.length, 0);
+    assert.equal(result.syncResult.jobs.length, 0);
+    assert.equal(result.syncResult.soul.length, 0);
+    // No compiled config.yaml / SOUL.md were produced for the profile.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'config.yaml')));
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
+    // The old throw-swallowing behavior is gone: no warning line, no throw.
+    assert.ok(
+      !logs.some((l) => l.includes('Warning during initial sync')),
+      `unexpected sync warning captured: ${JSON.stringify(logs)}`
+    );
+    assert.ok(
+      !logs.some((l) => l.includes('Error merging')),
+      `unexpected error log line: ${JSON.stringify(logs)}`
+    );
+    // Pre-existing files were preserved (init without force does not
+    // overwrite the broken common config).
+    assert.match(
+      fs.readFileSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), 'utf8'),
+      /- just/
+    );
   });
 });

@@ -495,3 +495,100 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
 });
+
+describe('CLI init exit status reflects initial-sync failures', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-init-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /** Shared failure assertions: non-zero exit, no banner, readable stderr. */
+  function assertFailingInit(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
+    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /Failed:/);
+  }
+
+  it('init exits 1 without a success banner when profiles/common/config.yaml is broken', () => {
+    // Pre-existing workspace with a CORRUPT common config (a YAML list).
+    // init must not overwrite it (no --force), and the initial sync must
+    // fail cleanly with a non-zero exit instead of a false success banner.
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+
+    const r = runCli(['init'], { cwd: tmpDir });
+    assertFailingInit(r, 'init');
+    // The specific top-level merge error is reported on stderr.
+    assert.match(r.stderr, /Common config must be a YAML object/);
+    assert.match(r.stderr, /Failed: the sync run failed/);
+    // init without force preserved the broken file instead of silently
+    // repairing it and claiming success.
+    assert.match(
+      fs.readFileSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), 'utf8'),
+      /- just/
+    );
+  });
+
+  it('init -q exits 1 and still reports the broken common config on stderr', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+
+    const r = runCli(['init'], { cwd: tmpDir, quiet: true });
+    assertFailingInit(r, 'init -q');
+    assert.ok(!r.stdout.includes('✓'), `init -q: no banner on stdout:\n${r.stdout}`);
+    assert.match(r.stderr, /Common config must be a YAML object/);
+  });
+
+  it('init exits 1 without a success banner when the initial sync has a per-profile merge error', () => {
+    // A pre-existing profile with an invalid custom config: the initial
+    // sync records it as a status:'error' entry, and init must surface it.
+    scaffoldWorkspace(tmpDir);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+
+    const r = runCli(['init'], { cwd: tmpDir });
+    assertFailingInit(r, 'init per-profile');
+    const shown = r.stdout + r.stderr;
+    assert.ok(
+      shown.includes('bad') && shown.toLowerCase().includes('error'),
+      `init: failure output must name the failing profile:\n${shown}`
+    );
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+  });
+
+  it('init exits 0 with the success banner and compiled outputs on a clean workspace', () => {
+    const r = runCli(['init'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'config.yaml')));
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'cron', 'jobs.json')));
+  });
+
+  it('init --no-sync exits 0 even with a broken common config (no sync was run)', () => {
+    // With --no-sync the initial sync does not run, so there is no sync
+    // result to gate on: the scaffold itself succeeded.
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+
+    const r = runCli(['init', '--no-sync'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
+  });
+});

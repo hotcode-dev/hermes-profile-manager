@@ -22,6 +22,19 @@ export interface SyncAllResult {
    * (or was a no-op).
    */
   linkErrors: string[];
+  /**
+   * A top-level (pre-profile) failure of a merge step, captured instead of
+   * thrown so the aggregate never aborts before the CLI can report it.
+   *
+   * The per-profile failures are recorded as `status: 'error'` entries in
+   * the merge arrays, but a merge step can ALSO fail before it even reaches
+   * its profiles - e.g. `mergeConfig` throws when
+   * `profiles/common/config.yaml` is missing or not a YAML object. Those
+   * are captured here (the merge arrays stay empty), and `syncAll` therefore
+   * really does never throw: the CLI gates its success banner and exit code
+   * on BOTH this field and the per-profile error entries.
+   */
+  syncError?: string;
 }
 
 /**
@@ -78,7 +91,24 @@ export function linkAll(options: SyncOptions = {}): { skills: LinkResult[]; plug
 }
 
 export function syncAll(options: SyncOptions = {}): SyncAllResult {
-  const { config, jobs, soul } = mergeAll(options);
+  // mergeAll normally records per-profile failures as `status: 'error'`
+  // entries (never thrown), but a top-level merge precondition - e.g. a
+  // missing or non-object `profiles/common/config.yaml` in mergeConfig -
+  // still throws. Capture it into `syncError` so syncAll really never
+  // throws and the CLI can report the failure together with the link
+  // results instead of dying with a raw stack trace.
+  const baseOptions: SyncOptions = { ...options, allowEmpty: true };
+  let config: MergeConfigResult[] = [];
+  let jobs: MergeJobsResult[] = [];
+  let soul: MergeSoulResult[] = [];
+  let syncError: string | undefined;
+  try {
+    // mergeAll forces allowEmpty internally, so a genuinely empty workspace
+    // is a benign no-op here; only real top-level failures reach the catch.
+    ({ config, jobs, soul } = mergeAll(baseOptions));
+  } catch (err: unknown) {
+    syncError = err instanceof Error ? err.message : String(err);
+  }
   const { skills, plugins, hermesLink, linkErrors } = linkAll(options);
-  return { config, jobs, soul, skills, plugins, hermesLink, linkErrors };
+  return { config, jobs, soul, skills, plugins, hermesLink, linkErrors, syncError };
 }
