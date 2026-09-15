@@ -661,3 +661,132 @@ describe('CLI sync/all/merge-all exit status reflects top-level sync failures', 
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
 });
+
+describe('CLI standalone merge family handles top-level merge preconditions cleanly', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-mergetoplevel-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /**
+   * Valid workspace whose top-level `profiles/common/config.yaml` parses to a
+   * YAML LIST, so mergeConfig throws the top-level precondition
+   * "Common config must be a YAML object" — the same failure shape used by
+   * the PR #8 sync suite, now exercised through the STANDALONE merge commands
+   * (which previously had no try/catch and died with a raw stack trace).
+   */
+  function scaffoldBrokenTopLevelWorkspace(): void {
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+  }
+
+  /**
+   * Shared failure assertions for a top-level merge precondition: exit 1, no
+   * success banner, no raw stack trace, the readable precondition message,
+   * and the shared `Failed: the merge run failed.` summary.
+   */
+  function assertFailingTopLevelMergeRun(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string
+  ): void {
+    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /Common config must be a YAML object/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  }
+
+  it('merge config exits 1 and reports the top-level failure when the common config is not a YAML object', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assertFailingTopLevelMergeRun(r, 'merge config');
+  });
+
+  it('config-merge alias exits 1 and reports the top-level failure when the common config is not a YAML object', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['config-merge'], { cwd: tmpDir });
+    assertFailingTopLevelMergeRun(r, 'config-merge');
+  });
+
+  it('merge all exits 1 and reports the top-level failure when the common config is not a YAML object', () => {
+    // mergeAll calls mergeConfig first, so the same top-level precondition
+    // hits `merge all` too (previously a raw stack trace).
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['merge', 'all'], { cwd: tmpDir });
+    assertFailingTopLevelMergeRun(r, 'merge all');
+  });
+
+  it('merge config -q still exits 1 and writes the top-level failure to stderr (banner suppressed)', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['merge', 'config'], { cwd: tmpDir, quiet: true });
+    assert.equal(r.status, 1, `merge config -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(r.stdout, '', 'merge config -q prints nothing on stdout');
+    assert.match(r.stderr, /Common config must be a YAML object/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+
+  it('merge config exits 0 with the banner when the workspace is genuinely valid (regression guard)', () => {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    assert.equal(r.stderr, '', 'clean merge config prints nothing on stderr');
+  });
+
+  it('merge soul exits 1 cleanly when profiles/common/SOUL.md is absent (top-level precondition)', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const r = runCli(['merge', 'soul'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /Common SOUL file not found/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+
+  it('soul-merge alias exits 1 cleanly when profiles/common/SOUL.md is absent (top-level precondition)', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const r = runCli(['soul-merge'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /Common SOUL file not found/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+
+  it('merge jobs exits 1 cleanly when no profile has cron/jobs.custom.json (top-level precondition)', () => {
+    // scaffoldWorkspace creates the common sources but no profiles and no
+    // cron/jobs.custom.json, so the standalone mergeJobs (allowEmpty=false)
+    // throws the "nothing to merge" precondition.
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['merge', 'jobs'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /no profiles with cron\/jobs\.custom\.json found/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+
+  it('jobs-merge alias exits 1 cleanly when no profile has cron/jobs.custom.json (top-level precondition)', () => {
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['jobs-merge'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /no profiles with cron\/jobs\.custom\.json found/);
+    assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+});
