@@ -6,4 +6,7 @@ export * from './core/sync.js';
 export * from './core/init.js';
 export * from './utils/deep-merge.js';
 export * from './utils/fs-helpers.js';
+export * from './utils/merge-gate.js';
+export * from './utils/merge-results.js';
 export * from './utils/root-finder.js';
+export * from './utils/merge-results.js';
