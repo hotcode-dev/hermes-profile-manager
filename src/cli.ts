@@ -232,7 +232,8 @@ program
     finishSync(
       'Synced all Hermes profiles successfully',
       [result.config, result.jobs, result.soul],
-      result.linkErrors
+      result.linkErrors,
+      result.syncError
     );
   });
 
@@ -350,7 +351,8 @@ program
     finishSync(
       'Merged config, jobs, and SOUL, and linked skills and plugins for all profiles',
       [result.config, result.jobs, result.soul],
-      result.linkErrors
+      result.linkErrors,
+      result.syncError
     );
   });
 

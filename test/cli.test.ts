@@ -592,3 +592,72 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
   });
 });
+
+describe('CLI sync/all/merge-all exit status reflects top-level sync failures', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-synctoplevel-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /**
+   * Valid workspace whose top-level `profiles/common/config.yaml` parses to a
+   * YAML LIST, so mergeConfig throws the top-level precondition
+   * "Common config must be a YAML object" — captured by syncAll into
+   * `result.syncError` instead of thrown.
+   */
+  function scaffoldBrokenTopLevelWorkspace(): void {
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+  }
+
+  /** Shared failure assertions: exit 1, no banner, readable top-level error. */
+  function assertFailingTopLevelRun(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
+    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /the sync run failed/);
+    assert.match(r.stderr, /Common config must be a YAML object/);
+  }
+
+  it('sync exits 1 and reports the top-level failure when profiles/common/config.yaml is not a YAML object', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assertFailingTopLevelRun(r, 'sync');
+  });
+
+  it('all (sync alias) exits 1 and reports the top-level failure when the common config is not a YAML object', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['all'], { cwd: tmpDir });
+    assertFailingTopLevelRun(r, 'all');
+  });
+
+  it('merge-all exits 1 and reports the top-level failure when the common config is not a YAML object', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['merge-all'], { cwd: tmpDir });
+    assertFailingTopLevelRun(r, 'merge-all');
+  });
+
+  it('sync -q still exits 1 and writes the top-level failure to stderr (banner suppressed)', () => {
+    scaffoldBrokenTopLevelWorkspace();
+    const r = runCli(['sync'], { cwd: tmpDir, quiet: true });
+    assert.equal(r.status, 1, `sync -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(r.stdout, '', 'sync -q prints nothing on stdout');
+    assert.match(r.stderr, /the sync run failed/);
+    assert.match(r.stderr, /Common config must be a YAML object/);
+  });
+
+  it('sync exits 0 with the success banner when the workspace is genuinely valid (regression guard)', () => {
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
+  });
+});
