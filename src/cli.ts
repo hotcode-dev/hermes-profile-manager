@@ -60,6 +60,83 @@ function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): voi
   }
 }
 
+/**
+ * Reports BOTH per-profile merge failures AND link-step failures, and exits
+ * non-zero when either is present.
+ *
+ * This is the aggregate counterpart to {@link finishWithErrors}, used by
+ * `sync`, `all`, and `merge-all` (which run the merges first and then the
+ * link steps). The merges record `status: 'error'` entries instead of
+ * throwing, and the link steps capture failures into `result.linkErrors`
+ * instead of throwing (see `linkAll` / `syncAll` in core/sync.ts). Because
+ * neither step throws, `syncAll` always returns and the already-computed
+ * merge results are ALWAYS reported here - a link failure can no longer
+ * preempt the merge report (the bug this module set out to fix).
+ *
+ * The success banner is suppressed under `--quiet`; the error report is
+ * always shown (on stderr), matching the merge-path contract.
+ */
+function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[]): void {
+  const errors = collectMergeErrors(...arrays);
+  if (errors.length > 0 || linkErrors.length > 0) {
+    for (const entry of errors) {
+      console.error(`\u2717 ${entry.profile}: ${entry.error ?? 'merge failed'}`);
+    }
+    for (const message of linkErrors) {
+      console.error(`\u2717 ${message}`);
+    }
+    const parts: string[] = [];
+    if (errors.length > 0) parts.push(`${errors.length} profile(s) had merge errors`);
+    if (linkErrors.length > 0) parts.push(`${linkErrors.length} link step(s) failed`);
+    console.error(`Failed: ${parts.join(' and ')}. Fix the sources above and re-run.`);
+    process.exit(1);
+  }
+  if (!program.opts().quiet) {
+    console.log(`\u2713 ${banner}`);
+  }
+}
+
+/**
+ * Reports link-step failures and exits non-zero.
+ *
+ * Used by the standalone `link` command (default target `all`), whose link
+ * step is `linkAll` - which, unlike the individual link functions, captures
+ * its failures into the returned `linkErrors` array instead of throwing.
+ */
+function finishLinkErrors(linkErrors: string[]): void {
+  for (const message of linkErrors) {
+    console.error(`\u2717 ${message}`);
+  }
+  console.error(
+    linkErrors.length === 1
+      ? 'Failed: 1 link step failed. Fix the source above and re-run.'
+      : `Failed: ${linkErrors.length} link steps failed. Fix the sources above and re-run.`
+  );
+  process.exit(1);
+}
+
+/**
+ * Runs a single link operation (linkSkills / linkPlugins / linkHermes), all
+ * of which throw when their required source directory is missing or a symlink
+ * cannot be created, and converts any thrown error into a readable one-line
+ * error on stderr and a controlled non-zero exit - never a raw stack trace.
+ *
+ * On success the given banner is printed (suppressed under `--quiet`),
+ * matching the success-banner contract of the merge commands.
+ */
+function safeLink(banner: string, operation: () => void): void {
+  try {
+    operation();
+  } catch (err: unknown) {
+    console.error(`\u2717 ${err instanceof Error ? err.message : String(err)}`);
+    console.error('Failed: 1 link step failed. Fix the source above and re-run.');
+    process.exit(1);
+  }
+  if (!program.opts().quiet) {
+    console.log(`\u2713 ${banner}`);
+  }
+}
+
 // Command: init
 program
   .command('init [targetDir]')
@@ -99,8 +176,16 @@ program
   .option('--include-hermes-link', 'Also link profiles directory to ~/.hermes/profiles', false)
   .action((cmdOpts) => {
     const opts = { ...getOptions(cmdOpts), includeHermesLink: cmdOpts.includeHermesLink };
+    // syncAll runs the merges (recorded as status:'error' entries, never
+    // thrown) and then the link steps (captured into result.linkErrors,
+    // never thrown). It never throws, so both the merge results and any link
+    // failures reach finishSync and are reported together.
     const result = syncAll(opts);
-    finishWithErrors('Synced all Hermes profiles successfully', result.config, result.jobs, result.soul);
+    finishSync(
+      'Synced all Hermes profiles successfully',
+      [result.config, result.jobs, result.soul],
+      result.linkErrors
+    );
   });
 
 // Command: merge
@@ -137,26 +222,26 @@ program
   .action((target, cmdOpts) => {
     const opts = getOptions(cmdOpts);
     switch (target || 'all') {
-      case 'all':
-        linkAll(opts);
+      case 'all': {
+        // linkAll captures its failures into linkErrors (it does not throw),
+        // so report them through finishLinkErrors rather than a try/catch.
+        const result = linkAll(opts);
+        if (result.linkErrors.length > 0) {
+          finishLinkErrors(result.linkErrors);
+        }
         if (!program.opts().quiet) {
           console.log('\u2713 Linked skills and plugins for all profiles');
         }
         break;
+      }
       case 'skills':
-        linkSkills(opts);
-        if (!program.opts().quiet) {
-          console.log('\u2713 Linked common skills to all profiles');
-        }
+        safeLink('Linked common skills to all profiles', () => linkSkills(opts));
         break;
       case 'plugins':
-        linkPlugins(opts);
-        if (!program.opts().quiet) {
-          console.log('\u2713 Linked common plugins to all profiles and ~/.hermes/plugins');
-        }
+        safeLink('Linked common plugins to all profiles and ~/.hermes/plugins', () => linkPlugins(opts));
         break;
       case 'hermes':
-        linkHermes(opts);
+        safeLink('Linked Hermes profiles to the Hermes home directory', () => linkHermes(opts));
         break;
       default:
         console.error(`Unknown link target: ${target}. Valid options: all, skills, plugins, hermes`);
@@ -190,33 +275,34 @@ program
   .command('skills-link')
   .description('Alias for "link skills"')
   .action((cmdOpts) => {
-    linkSkills(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('\u2713 Linked common skills to all profiles');
+    safeLink('Linked common skills to all profiles', () => linkSkills(getOptions(cmdOpts)));
   });
 
 program
   .command('plugins-link')
   .description('Alias for "link plugins"')
   .action((cmdOpts) => {
-    linkPlugins(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('\u2713 Linked common plugins to all profiles and ~/.hermes/plugins');
+    safeLink('Linked common plugins to all profiles and ~/.hermes/plugins', () => linkPlugins(getOptions(cmdOpts)));
   });
 
 program
   .command('hermes-link')
   .description('Alias for "link hermes"')
   .action((cmdOpts) => {
-    linkHermes(getOptions(cmdOpts));
+    safeLink('Linked Hermes profiles to the Hermes home directory', () => linkHermes(getOptions(cmdOpts)));
   });
 
 program
   .command('merge-all')
   .description('Alias for "sync"')
   .action((cmdOpts) => {
+    // Same contract as `sync`: syncAll never throws, so the merge results are
+    // always reported together with any link failure.
     const result = syncAll(getOptions(cmdOpts));
-    finishWithErrors(
+    finishSync(
       'Merged config, jobs, and SOUL, and linked skills and plugins for all profiles',
-      result.config, result.jobs, result.soul
+      [result.config, result.jobs, result.soul],
+      result.linkErrors
     );
   });
 

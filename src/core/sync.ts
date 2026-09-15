@@ -14,6 +14,14 @@ export interface SyncAllResult {
   skills: LinkResult[];
   plugins: LinkResult[];
   hermesLink?: LinkResult;
+  /**
+   * Errors from the link steps (skills / plugins / hermes), captured instead
+   * of thrown so the aggregate never aborts before the CLI can report them.
+   * Mirrors the merge path, where per-profile failures are recorded in the
+   * returned arrays rather than thrown. Empty when every link step succeeded
+   * (or was a no-op).
+   */
+  linkErrors: string[];
 }
 
 /**
@@ -31,18 +39,46 @@ export function mergeAll(options: SyncOptions = {}): { config: MergeConfigResult
   return { config, jobs, soul };
 }
 
-export function linkAll(options: SyncOptions = {}): { skills: LinkResult[]; plugins: LinkResult[]; hermesLink?: LinkResult } {
-  const skills = linkSkills(options);
-  const plugins = linkPlugins(options);
+/**
+ * Runs the link steps (skills, plugins, and optionally the Hermes profiles
+ * link). Each step is run inside its own try/catch so that a failure in one
+ * step (e.g. a missing `profiles/common/skills` source dir) is *captured*
+ * into `linkErrors` instead of thrown. This mirrors the merge path, where
+ * per-profile failures are recorded in the returned arrays rather than
+ * thrown, and guarantees the aggregate (`syncAll`) always returns so the CLI
+ * can report BOTH the merge results and any link failures in one pass.
+ */
+export function linkAll(options: SyncOptions = {}): { skills: LinkResult[]; plugins: LinkResult[]; hermesLink?: LinkResult; linkErrors: string[] } {
+  const linkErrors: string[] = [];
+  let skills: LinkResult[] = [];
+  let plugins: LinkResult[] = [];
   let hermesLink: LinkResult | undefined;
-  if (options.includeHermesLink) {
-    hermesLink = linkHermes(options);
+
+  try {
+    skills = linkSkills(options);
+  } catch (err: unknown) {
+    linkErrors.push(err instanceof Error ? err.message : String(err));
   }
-  return { skills, plugins, hermesLink };
+
+  try {
+    plugins = linkPlugins(options);
+  } catch (err: unknown) {
+    linkErrors.push(err instanceof Error ? err.message : String(err));
+  }
+
+  if (options.includeHermesLink) {
+    try {
+      hermesLink = linkHermes(options);
+    } catch (err: unknown) {
+      linkErrors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return { skills, plugins, hermesLink, linkErrors };
 }
 
 export function syncAll(options: SyncOptions = {}): SyncAllResult {
   const { config, jobs, soul } = mergeAll(options);
-  const { skills, plugins, hermesLink } = linkAll(options);
-  return { config, jobs, soul, skills, plugins, hermesLink };
+  const { skills, plugins, hermesLink, linkErrors } = linkAll(options);
+  return { config, jobs, soul, skills, plugins, hermesLink, linkErrors };
 }
