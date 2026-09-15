@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { parse as parseYaml } from 'yaml';
 import { mergeConfig } from '../src/core/config.js';
 import { mergeJobs } from '../src/core/jobs.js';
@@ -11,7 +12,9 @@ import { mergeSoul } from '../src/core/soul.js';
 import { collectMergeErrors, decideMergeExit, MergeStatusResult } from '../src/utils/merge-results.js';
 
 const CLI_PATH = path.join(import.meta.dirname, '..', 'src', 'cli.ts');
-const NODE_OPTIONS = process.env.NODE_OPTIONS || '';
+// Absolute path to the tsx ESM loader: the CLI is spawned with a cwd inside
+// the temporary workspace, where the bare 'tsx' specifier would not resolve.
+const TSX_LOADER = createRequire(path.join(import.meta.dirname, '..', 'package.json')).resolve('tsx');
 
 /**
  * Builds a minimal valid workspace:
@@ -34,14 +37,13 @@ function runCli(args: string[], opts: { cwd?: string; quiet?: boolean } = {}): {
   stderr: string;
 } {
   const cliArgs = opts.quiet ? ['-q', ...args] : args;
-  const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_PATH, ...cliArgs], {
+  const result = spawnSync(process.execPath, ['--import', TSX_LOADER, CLI_PATH, ...cliArgs], {
     cwd: opts.cwd ?? process.cwd(),
     encoding: 'utf8',
     env: {
       ...process.env,
-      NODE_OPTIONS: `${NODE_OPTIONS} --import tsx`.trim(),
       // Keep the child away from the developer's real Hermes home.
-      HERMES_HOME: opts.cwd ? path.join(opts.cwd, 'fake-hermes') : os.tmpdir(),
+      HERMES_HOME: opts.cwd ? path.join(opts.cwd, 'fake-hermes') : os.tmpdir()
     }
   });
   return {
@@ -230,8 +232,8 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     const r = runCli(['sync'], { cwd: tmpDir, quiet: true });
     assertFailingRun(r, 'sync -q');
     assert.ok(!r.stdout.includes('✓'), `sync -q: no banner on stdout:\n${r.stdout}`);
-    assert.match(r.stderr, /profile merge\(s\) failed/);
-    assert.match(r.stderr, /bad/);
+    assert.match(r.stderr, /Failed: 1 profile\(s\) had merge errors/);
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
   });
 
   it('sync exits 0 with the success banner when all entries are merged or skipped', () => {

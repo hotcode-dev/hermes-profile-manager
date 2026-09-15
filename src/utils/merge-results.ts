@@ -1,41 +1,58 @@
 /**
- * Shared shape of the per-profile result entries returned by the merge
- * sub-commands (config, jobs, soul). The core modules record per-profile
- * failures as `status: 'error'` entries in their returned arrays rather than
- * throwing, so a run can complete "successfully" while individual profiles
- * failed. The CLI (and tests) use `mergeErrors` to recover those failures.
+ * Per-profile merge result shape shared by mergeConfig / mergeJobs /
+ * mergeSoul. Link results have a different shape (no per-profile status)
+ * and are intentionally not covered by these helpers.
  */
-export interface MergeEntry {
+export interface MergeStatusResult {
   profile: string;
   outputPath: string;
   status: 'merged' | 'skipped' | 'error';
   error?: string;
 }
 
-export interface MergeAllGroups {
-  config: MergeEntry[];
-  jobs: MergeEntry[];
-  soul: MergeEntry[];
+/**
+ * Returns the subset of entries with `status === 'error'` across one or
+ * more per-profile merge result arrays.
+ *
+ * The core merge modules (mergeConfig / mergeJobs / mergeSoul) deliberately
+ * catch per-profile failures and record them as `status: 'error'` entries
+ * in the returned arrays instead of throwing. `skipped` entries (a profile
+ * with no per-concern custom source) are an intended no-op and are NOT
+ * treated as errors here.
+ *
+ * The CLI uses this to gate its success banner and process exit code on
+ * the presence of actual merge failures, so automation (CI, cron,
+ * pipelines) sees a non-zero exit when a profile merge fails.
+ */
+export function collectMergeErrors(...arrays: MergeStatusResult[][]): MergeStatusResult[] {
+  const errors: MergeStatusResult[] = [];
+  for (const array of arrays) {
+    for (const entry of array) {
+      if (entry?.status === 'error') {
+        errors.push(entry);
+      }
+    }
+  }
+  return errors;
 }
 
 /**
- * Returns the entries with `status === 'error'` from one or more merge result
- * arrays. Accepts flat arrays (e.g. `mergeConfig`'s return value) and the
- * `{ config, jobs, soul }` shape returned by `mergeAll` (or any superset of
- * it, such as `SyncAllResult`), so callers can pass whatever they have
- * without reshaping. `skipped` entries (a profile with no custom source for
- * that concern) are intentionally NOT errors — they are the intended no-op
- * behavior.
+ * Exit-code / banner decision for a CLI action that ran one or more
+ * per-profile merge steps.
+ *
+ * - any `status: 'error'` entry → failure: exit 1, no success banner.
+ * - only `merged` / `skipped` entries (or no entries at all) → success:
+ *   exit 0, success banner. `skipped` is the intended no-op behavior for
+ *   profiles without a custom source and never fails the run.
  */
-export function mergeErrors(...groups: (MergeEntry[] | MergeAllGroups | undefined)[]): MergeEntry[] {
-  const entries: MergeEntry[] = [];
-  for (const group of groups) {
-    if (!group) continue;
-    if (Array.isArray(group)) {
-      entries.push(...group);
-    } else {
-      entries.push(...group.config, ...group.jobs, ...group.soul);
-    }
-  }
-  return entries.filter((entry) => entry.status === 'error');
+export interface MergeRunDecision {
+  /** True when no merge errors were found; the CLI may print its banner. */
+  success: boolean;
+  /** Process exit code: 0 on success, 1 when any entry has status 'error'. */
+  exitCode: 0 | 1;
+}
+
+export function decideMergeExit(...arrays: MergeStatusResult[][]): MergeRunDecision {
+  const hasErrors = arrays.some((array) => array.some((entry) => entry?.status === 'error'));
+  return hasErrors ? { success: false, exitCode: 1 } : { success: true, exitCode: 0 };
 }
