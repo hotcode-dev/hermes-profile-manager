@@ -7,6 +7,7 @@ import { mergeSoul } from './core/soul.js';
 import { linkSkills, linkPlugins, linkHermes } from './core/links.js';
 import { mergeAll, linkAll, syncAll } from './core/sync.js';
 import { initWorkspace } from './core/init.js';
+import { collectMergeErrors, MergeStatusResult } from './utils/merge-results.js';
 
 const program = new Command();
 
@@ -33,6 +34,32 @@ function getOptions(cmd: any) {
   };
 }
 
+/**
+ * Reports per-profile merge failures and exits non-zero when any concern
+ * produced `status: 'error'` entries.
+ *
+ * The core modules catch per-profile errors and record them in the returned
+ * arrays instead of throwing, and their own error `log(...)` lines are
+ * suppressed under `--quiet`. This is the single place where the CLI turns
+ * that information into a visible report and a failing exit code.
+ *
+ * `skipped` entries (no custom source for the profile) are NOT failures - the
+ * banner and exit 0 are still produced when only `skipped`/`merged` exist.
+ */
+function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): void {
+  const errors = collectMergeErrors(...arrays);
+  if (errors.length > 0) {
+    for (const entry of errors) {
+      console.error(`\u2717 ${entry.profile}: ${entry.error ?? 'merge failed'}`);
+    }
+    console.error(`Failed: ${errors.length} profile(s) had merge errors. Fix the sources above and re-run.`);
+    process.exit(1);
+  }
+  if (!program.opts().quiet) {
+    console.log(`\u2713 ${banner}`);
+  }
+}
+
 // Command: init
 program
   .command('init [targetDir]')
@@ -51,7 +78,7 @@ program
     });
 
     if (!program.opts().quiet) {
-      console.log(`\n✓ Successfully initialized Hermes profiles in ${result.targetDir}`);
+      console.log(`\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`);
       console.log(`  - Profile created: ${result.profileName}`);
       console.log(`  - Files created: ${result.createdFiles.length}`);
       if (result.skippedFiles.length > 0) {
@@ -72,10 +99,8 @@ program
   .option('--include-hermes-link', 'Also link profiles directory to ~/.hermes/profiles', false)
   .action((cmdOpts) => {
     const opts = { ...getOptions(cmdOpts), includeHermesLink: cmdOpts.includeHermesLink };
-    syncAll(opts);
-    if (!program.opts().quiet) {
-      console.log('✓ Synced all Hermes profiles successfully');
-    }
+    const result = syncAll(opts);
+    finishWithErrors('Synced all Hermes profiles successfully', result.config, result.jobs, result.soul);
   });
 
 // Command: merge
@@ -85,29 +110,19 @@ program
   .action((target, cmdOpts) => {
     const opts = getOptions(cmdOpts);
     switch (target || 'all') {
-      case 'all':
-        mergeAll(opts);
-        if (!program.opts().quiet) {
-          console.log('✓ Merged config, jobs, and SOUL for all profiles');
-        }
+      case 'all': {
+        const result = mergeAll(opts);
+        finishWithErrors('Merged config, jobs, and SOUL for all profiles', result.config, result.jobs, result.soul);
         break;
+      }
       case 'config':
-        mergeConfig(opts);
-        if (!program.opts().quiet) {
-          console.log('✓ Merged config for all profiles');
-        }
+        finishWithErrors('Merged config for all profiles', mergeConfig(opts));
         break;
       case 'jobs':
-        mergeJobs(opts);
-        if (!program.opts().quiet) {
-          console.log('✓ Merged jobs for all profiles');
-        }
+        finishWithErrors('Merged jobs for all profiles', mergeJobs(opts));
         break;
       case 'soul':
-        mergeSoul(opts);
-        if (!program.opts().quiet) {
-          console.log('✓ Merged SOUL for all profiles');
-        }
+        finishWithErrors('Merged SOUL for all profiles', mergeSoul(opts));
         break;
       default:
         console.error(`Unknown merge target: ${target}. Valid options: all, config, jobs, soul`);
@@ -125,19 +140,19 @@ program
       case 'all':
         linkAll(opts);
         if (!program.opts().quiet) {
-          console.log('✓ Linked skills and plugins for all profiles');
+          console.log('\u2713 Linked skills and plugins for all profiles');
         }
         break;
       case 'skills':
         linkSkills(opts);
         if (!program.opts().quiet) {
-          console.log('✓ Linked common skills to all profiles');
+          console.log('\u2713 Linked common skills to all profiles');
         }
         break;
       case 'plugins':
         linkPlugins(opts);
         if (!program.opts().quiet) {
-          console.log('✓ Linked common plugins to all profiles and ~/.hermes/plugins');
+          console.log('\u2713 Linked common plugins to all profiles and ~/.hermes/plugins');
         }
         break;
       case 'hermes':
@@ -154,24 +169,21 @@ program
   .command('config-merge')
   .description('Alias for "merge config"')
   .action((cmdOpts) => {
-    mergeConfig(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('✓ Merged config for all profiles');
+    finishWithErrors('Merged config for all profiles', mergeConfig(getOptions(cmdOpts)));
   });
 
 program
   .command('jobs-merge')
   .description('Alias for "merge jobs"')
   .action((cmdOpts) => {
-    mergeJobs(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('✓ Merged jobs for all profiles');
+    finishWithErrors('Merged jobs for all profiles', mergeJobs(getOptions(cmdOpts)));
   });
 
 program
   .command('soul-merge')
   .description('Alias for "merge soul"')
   .action((cmdOpts) => {
-    mergeSoul(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('✓ Merged SOUL for all profiles');
+    finishWithErrors('Merged SOUL for all profiles', mergeSoul(getOptions(cmdOpts)));
   });
 
 program
@@ -179,7 +191,7 @@ program
   .description('Alias for "link skills"')
   .action((cmdOpts) => {
     linkSkills(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('✓ Linked common skills to all profiles');
+    if (!program.opts().quiet) console.log('\u2713 Linked common skills to all profiles');
   });
 
 program
@@ -187,7 +199,7 @@ program
   .description('Alias for "link plugins"')
   .action((cmdOpts) => {
     linkPlugins(getOptions(cmdOpts));
-    if (!program.opts().quiet) console.log('✓ Linked common plugins to all profiles and ~/.hermes/plugins');
+    if (!program.opts().quiet) console.log('\u2713 Linked common plugins to all profiles and ~/.hermes/plugins');
   });
 
 program
@@ -201,10 +213,11 @@ program
   .command('merge-all')
   .description('Alias for "sync"')
   .action((cmdOpts) => {
-    syncAll(getOptions(cmdOpts));
-    if (!program.opts().quiet) {
-      console.log('✓ Merged config, jobs, and SOUL, and linked skills and plugins for all profiles');
-    }
+    const result = syncAll(getOptions(cmdOpts));
+    finishWithErrors(
+      'Merged config, jobs, and SOUL, and linked skills and plugins for all profiles',
+      result.config, result.jobs, result.soul
+    );
   });
 
 program.parse();
