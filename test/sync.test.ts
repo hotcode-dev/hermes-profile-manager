@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { parse as parseYaml } from 'yaml';
-import { syncAll, mergeAll, SyncAllResult } from '../src/core/sync.js';
+import { syncAll, mergeAll, linkAll, SyncAllResult } from '../src/core/sync.js';
 import { mergeJobs } from '../src/core/jobs.js';
 import { mergeSoul } from '../src/core/soul.js';
 import { mergeConfig } from '../src/core/config.js';
@@ -143,6 +143,106 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     const live = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
     assert.ok(fs.existsSync(path.join(aDir, 'config.yaml')));
     assert.ok(!fs.existsSync(path.join(bDir, 'config.yaml')));
+  });
+});
+
+describe('linkAll / syncAll capture link failures without throwing', () => {
+  let tmpDir: string;
+  let hermesDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-sync-link-'));
+    hermesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-hermes-link-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(hermesDir, { recursive: true, force: true });
+  });
+
+  it('linkAll captures a missing skills source dir as a linkError instead of throwing', () => {
+    scaffoldCommon(tmpDir);
+    // profiles/common/plugins is present (scaffoldCommon made it), but the
+    // skills source dir is stripped so linkSkills throws internally.
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+
+    // The regression target: linkAll used to throw, which made syncAll abort
+    // before the CLI could report the merge results.
+    const out = linkAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.equal(out.skills.length, 0);
+    assert.equal(out.linkErrors.length, 1);
+    assert.match(out.linkErrors[0], /Common skills directory not found/);
+  });
+
+  it('linkAll captures a missing plugins source dir as a linkError instead of throwing', () => {
+    scaffoldCommon(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    const out = linkAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.equal(out.linkErrors.length, 1);
+    assert.match(out.linkErrors[0], /Common plugins directory not found/);
+  });
+
+  it('linkAll captures BOTH missing skills and plugins source dirs as separate linkErrors', () => {
+    scaffoldCommon(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    const out = linkAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.equal(out.linkErrors.length, 2);
+    assert.match(out.linkErrors[0], /Common skills directory not found/);
+    assert.match(out.linkErrors[1], /Common plugins directory not found/);
+  });
+
+  it('linkAll captures a missing profiles source dir for the hermes link when includeHermesLink is set', () => {
+    // Only common exists; the profiles source dir is removed so linkHermes
+    // throws. includeHermesLink: true forces the hermes link step to run.
+    const onlyCommon = path.join(tmpDir, 'profiles');
+    fs.mkdirSync(path.join(onlyCommon, 'common', 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(onlyCommon, 'common', 'plugins'), { recursive: true });
+    fs.writeFileSync(path.join(onlyCommon, 'common', 'config.yaml'), `model: "default"\n`);
+    // Now delete the profiles dir entirely so linkHermes (and the profile
+    // loops) see a missing source.
+    fs.rmSync(onlyCommon, { recursive: true, force: true });
+
+    const out = linkAll({ rootDir: tmpDir, hermesDir, includeHermesLink: true, logger: () => {} });
+    // skills + plugins + hermes all failed on the missing source.
+    assert.equal(out.linkErrors.length, 3);
+    assert.ok(out.linkErrors.some((e) => /Profiles source directory not found/.test(e)));
+    assert.equal(out.hermesLink, undefined);
+  });
+
+  it('syncAll returns the merge results AND captures link failures (does not throw)', () => {
+    // Valid config custom for the profile so config merges; both link source
+    // dirs are stripped so both link steps fail.
+    scaffoldCommon(tmpDir);
+    const mainDir = path.join(tmpDir, 'profiles', 'main');
+    fs.mkdirSync(mainDir, { recursive: true });
+    fs.writeFileSync(path.join(mainDir, 'config.custom.yaml'), `model: "custom"\n`);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    // Regression target: syncAll used to throw from linkAll, losing the
+    // already-computed merge results. It must now return with BOTH.
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    // The merge result survived and is reportable.
+    assert.equal(result.config.length, 1);
+    assert.equal(result.config[0].status, 'merged');
+    // The link failures were captured (not thrown).
+    assert.equal(result.linkErrors.length, 2);
+    assert.match(result.linkErrors[0], /Common skills directory not found/);
+    assert.match(result.linkErrors[1], /Common plugins directory not found/);
+    // And the config merge actually wrote its output.
+    assert.ok(fs.existsSync(path.join(mainDir, 'config.yaml')));
+  });
+
+  it('linkAll returns an empty linkErrors array when all link sources are present', () => {
+    scaffoldCommon(tmpDir);
+    const mainDir = path.join(tmpDir, 'profiles', 'main');
+    fs.mkdirSync(mainDir, { recursive: true });
+
+    const out = linkAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.deepEqual(out.linkErrors, []);
   });
 });
 

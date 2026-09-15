@@ -5,7 +5,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { parse as parseYaml } from 'yaml';
 import { mergeConfig } from '../src/core/config.js';
 import { mergeJobs } from '../src/core/jobs.js';
 import { mergeSoul } from '../src/core/soul.js';
@@ -317,5 +316,182 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     const r = runCli(['soul-merge'], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
     assert.ok(r.stdout.includes('✓ Merged SOUL for all profiles'), r.stdout);
+  });
+});
+
+describe('CLI link-failure paths (missing link source directory)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-link-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /**
+   * Workspace with a valid profile config plus BROKEN link sources:
+   *   - profiles/common/skills   is deleted (linkSkills throws)
+   *   - profiles/common/plugins   is deleted (linkPlugins throws)
+   *   - profiles/                  is deleted (linkHermes would throw)
+   * scaffoldWorkspace already created the common/skills + common/plugins dirs,
+   * so this strips them out. No custom sources → the merge step is a benign
+   * no-op (all skipped), isolating the link behavior.
+   */
+  function scaffoldBrokenLinkWorkspace(): void {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+  }
+
+  /** A clean profile dir with a valid custom config (config merges cleanly). */
+  function makeLinkableProfile(name: string): void {
+    const dir = path.join(tmpDir, 'profiles', name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.custom.yaml'), `model: "${name}"\n`);
+  }
+
+  function assertLinkFailureRun(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
+    const shown = r.stdout + r.stderr;
+    // Non-zero exit ...
+    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    // ... no success banner ...
+    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    // ... no raw stack trace (the whole point of the fix) ...
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    // ... and a readable, one-line link error on stderr ...
+    assert.ok(shown.toLowerCase().includes('link'), `${label}: failure must mention the link failure:\n${shown}`);
+    assert.ok(r.stderr.includes('Failed:'), `${label}: failure summary missing:\n${r.stderr}`);
+  }
+
+  it('link skills prints a clean one-line error and exits 1 when profiles/common/skills is missing', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['link', 'skills'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'link skills');
+    assert.match(r.stderr, /Common skills directory not found/);
+  });
+
+  it('skills-link alias prints a clean one-line error and exits 1 when the skills dir is missing', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['skills-link'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'skills-link');
+    assert.match(r.stderr, /Common skills directory not found/);
+  });
+
+  it('link plugins prints a clean one-line error and exits 1 when profiles/common/plugins is missing', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['link', 'plugins'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'link plugins');
+    assert.match(r.stderr, /Common plugins directory not found/);
+  });
+
+  it('plugins-link alias prints a clean one-line error and exits 1 when the plugins dir is missing', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['plugins-link'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'plugins-link');
+    assert.match(r.stderr, /Common plugins directory not found/);
+  });
+
+  it('link hermes prints a clean one-line error and exits 1 when the profiles source dir is missing', () => {
+    scaffoldWorkspace(tmpDir);
+    // Profiles source dir must not exist for linkHermes to throw.
+    fs.rmSync(path.join(tmpDir, 'profiles'), { recursive: true, force: true });
+    const r = runCli(['link', 'hermes'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'link hermes');
+    assert.match(r.stderr, /Profiles source directory not found/);
+  });
+
+  it('hermes-link alias prints a clean one-line error and exits 1 when the profiles dir is missing', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles'), { recursive: true, force: true });
+    const r = runCli(['hermes-link'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'hermes-link');
+    assert.match(r.stderr, /Profiles source directory not found/);
+  });
+
+  it('link (default "all") reports both link failures and exits 1 without a stack trace', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['link'], { cwd: tmpDir });
+    assertLinkFailureRun(r, 'link');
+    assert.match(r.stderr, /Common skills directory not found/);
+    assert.match(r.stderr, /Common plugins directory not found/);
+  });
+
+  it('link -q still exits 1 and prints the link error (banner suppressed) when the link source is missing', () => {
+    scaffoldBrokenLinkWorkspace();
+    const r = runCli(['link'], { cwd: tmpDir, quiet: true });
+    assertLinkFailureRun(r, 'link -q');
+    assert.equal(r.stdout, '', 'quiet link failure prints nothing on stdout');
+    assert.match(r.stderr, /Failed:/);
+    assert.match(r.stderr, /link step/);
+  });
+
+  it('sync still reports the per-profile merge result when the link source dirs are missing', () => {
+    // A genuinely failing merge + broken link sources: the merge error and
+    // the link failures must both be reported in a single run.
+    scaffoldWorkspace(tmpDir);
+    makeLinkableProfile('good');
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `success banner must not print:\n${r.stdout}`);
+    // The pre-computed merge result is still reported (the bug this fixes).
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    // The link failure is reported too.
+    assert.match(r.stderr, /Common skills directory not found/);
+    assert.match(r.stderr, /Common plugins directory not found/);
+    // The summary names BOTH the merge and the link failures.
+    assert.match(r.stderr, /1 profile\(s\) had merge errors and 2 link step\(s\) failed/);
+    // No raw stack trace.
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `sync: no stack trace allowed:\n${r.stderr}`);
+  });
+
+  it('all (sync alias) still reports merge + link results and exits 1 when the link source is missing', () => {
+    scaffoldWorkspace(tmpDir);
+    makeLinkableProfile('good');
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    const r = runCli(['all'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), r.stdout);
+    // Merge succeeded (only skipped) but the link failures still force a
+    // non-zero exit with a clear message.
+    assert.match(r.stderr, /Common skills directory not found/);
+    assert.match(r.stderr, /2 link step\(s\) failed/);
+  });
+
+  it('merge-all still reports merge + link results and exits 1 when the link source is missing', () => {
+    scaffoldWorkspace(tmpDir);
+    makeLinkableProfile('good');
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'skills'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
+
+    const r = runCli(['merge-all'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), r.stdout);
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    assert.match(r.stderr, /Common skills directory not found/);
+    assert.match(r.stderr, /1 profile\(s\) had merge errors and 2 link step\(s\) failed/);
+  });
+
+  it('sync exits 0 with the banner when the link sources are present (regression guard)', () => {
+    scaffoldWorkspace(tmpDir);
+    makeLinkableProfile('good');
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
 });
