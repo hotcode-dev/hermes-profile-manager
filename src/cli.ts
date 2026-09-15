@@ -61,24 +61,31 @@ function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): voi
 }
 
 /**
- * Reports BOTH per-profile merge failures AND link-step failures, and exits
- * non-zero when either is present.
+ * Reports an initial-sync failure and exits non-zero. Returns true only
+ * when the run was CLEAN (no top-level sync error, no per-profile merge
+ * errors, no link failures) so the caller knows it may print its success
+ * banner. On failure this function never returns (process.exit(1)).
  *
- * This is the aggregate counterpart to {@link finishWithErrors}, used by
- * `sync`, `all`, and `merge-all` (which run the merges first and then the
- * link steps). The merges record `status: 'error'` entries instead of
- * throwing, and the link steps capture failures into `result.linkErrors`
- * instead of throwing (see `linkAll` / `syncAll` in core/sync.ts). Because
- * neither step throws, `syncAll` always returns and the already-computed
- * merge results are ALWAYS reported here - a link failure can no longer
- * preempt the merge report (the bug this module set out to fix).
+ * The three failure classes are reported in the order the run executes
+ * them: the top-level `syncError` first (a pre-profile precondition like a
+ * broken `profiles/common/config.yaml` aborts the merge step entirely,
+ * leaving the per-profile arrays empty), then the per-profile merge
+ * errors, then the link-step failures.
  *
- * The success banner is suppressed under `--quiet`; the error report is
- * always shown (on stderr), matching the merge-path contract.
+ * This is the single shared reporting path behind {@link finishSync} and
+ * the `init` command, so the merge-error / link-error / top-level error
+ * formatting and exit-code contract is implemented exactly once.
  */
-function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[]): void {
+function reportSyncErrors(
+  arrays: MergeStatusResult[][],
+  linkErrors: string[],
+  syncError?: string
+): boolean {
   const errors = collectMergeErrors(...arrays);
-  if (errors.length > 0 || linkErrors.length > 0) {
+  if (errors.length > 0 || linkErrors.length > 0 || syncError) {
+    if (syncError) {
+      console.error(`\u2717 ${syncError}`);
+    }
     for (const entry of errors) {
       console.error(`\u2717 ${entry.profile}: ${entry.error ?? 'merge failed'}`);
     }
@@ -86,12 +93,36 @@ function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: s
       console.error(`\u2717 ${message}`);
     }
     const parts: string[] = [];
+    if (syncError) parts.push('the sync run failed');
     if (errors.length > 0) parts.push(`${errors.length} profile(s) had merge errors`);
     if (linkErrors.length > 0) parts.push(`${linkErrors.length} link step(s) failed`);
     console.error(`Failed: ${parts.join(' and ')}. Fix the sources above and re-run.`);
     process.exit(1);
   }
-  if (!program.opts().quiet) {
+  return true;
+}
+
+/**
+ * Reports BOTH per-profile merge failures AND link-step failures (plus an
+ * optional top-level sync failure), and exits non-zero when any is present.
+ *
+ * This is the aggregate counterpart to {@link finishWithErrors}, used by
+ * `sync`, `all`, `merge-all`, and `init` (which run the full aggregate and
+ * report it through this shared path). The merges record `status: 'error'`
+ * entries instead of throwing, the link steps capture failures into
+ * `result.linkErrors` instead of throwing, and a top-level merge
+ * precondition failure (e.g. a missing or non-object
+ * `profiles/common/config.yaml`) is captured into `result.syncError`
+ * instead of throwing (see `syncAll` in core/sync.ts). Because nothing
+ * throws, the already-computed merge results are ALWAYS reported here - a
+ * link or top-level failure can no longer preempt the merge report (the
+ * bug this module set out to fix).
+ *
+ * The success banner is suppressed under `--quiet`; the error report is
+ * always shown (on stderr), matching the merge-path contract.
+ */
+function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[], syncError?: string): void {
+  if (reportSyncErrors(arrays, linkErrors, syncError) && !program.opts().quiet) {
     console.log(`\u2713 ${banner}`);
   }
 }
@@ -153,6 +184,23 @@ program
       runSync: cmdOpts.sync,
       logger
     });
+
+    // The initial sync never throws: per-profile merge failures are recorded
+    // as `status: 'error'` entries, a broken top-level source (e.g. a
+    // non-object profiles/common/config.yaml) is captured into
+    // `syncResult.syncError`, and link failures into `syncResult.linkErrors`.
+    // Gate the success banner and exit code on ALL of them, through the same
+    // shared reporting path as `sync` / `merge-all`.
+    if (result.syncResult) {
+      const clean = reportSyncErrors(
+        [result.syncResult.config, result.syncResult.jobs, result.syncResult.soul],
+        result.syncResult.linkErrors,
+        result.syncResult.syncError
+      );
+      if (!clean) {
+        return;
+      }
+    }
 
     if (!program.opts().quiet) {
       console.log(`\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`);
