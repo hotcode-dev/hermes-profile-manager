@@ -61,6 +61,40 @@ function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): voi
 }
 
 /**
+ * Runs a standalone merge step (mergeAll / mergeConfig / mergeJobs /
+ * mergeSoul) and gives the merge command family the same "never throw,
+ * always report cleanly" contract as the sync path.
+ *
+ * A TOP-LEVEL merge precondition - e.g. `mergeConfig` throwing when
+ * `profiles/common/config.yaml` is missing or not a YAML object, `mergeSoul`
+ * throwing when `profiles/common/SOUL.md` is absent, or `mergeJobs` /
+ * `mergeSoul` throwing when no profile has the custom source - escapes the
+ * core function before any per-profile results exist. The operation thunk is
+ * wrapped in a try/catch: that thrown error is converted to a single one-line
+ * error on stderr, a `Failed:` summary, and a controlled `process.exit(1)` -
+ * never a raw stack trace, and with no success banner. This mirrors
+ * {@link safeLink} and the `syncAll` / `reportSyncErrors` contract of the
+ * sync path.
+ *
+ * Per-profile behavior is UNCHANGED: on a clean (non-throwing) run the
+ * returned arrays are passed straight to {@link finishWithErrors}, which
+ * still inspects only `status: 'error'` entries and prints the banner on
+ * success. Only the pre-profile throw is captured here.
+ */
+function finishMerge(banner: string, operation: () => MergeStatusResult[][]): void {
+  let arrays: MergeStatusResult[][];
+  try {
+    arrays = operation();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`\u2717 ${message}`);
+    console.error('Failed: the merge run failed. Fix the sources above and re-run.');
+    process.exit(1);
+  }
+  finishWithErrors(banner, ...arrays);
+}
+
+/**
  * Reports an initial-sync failure and exits non-zero. Returns true only
  * when the run was CLEAN (no top-level sync error, no per-profile merge
  * errors, no link failures) so the caller knows it may print its success
@@ -245,18 +279,23 @@ program
     const opts = getOptions(cmdOpts);
     switch (target || 'all') {
       case 'all': {
-        const result = mergeAll(opts);
-        finishWithErrors('Merged config, jobs, and SOUL for all profiles', result.config, result.jobs, result.soul);
+        // finishMerge captures a top-level mergeAll throw (e.g. a missing or
+        // non-object profiles/common/config.yaml) so it is reported cleanly
+        // instead of escaping as a raw stack trace.
+        finishMerge('Merged config, jobs, and SOUL for all profiles', () => {
+          const result = mergeAll(opts);
+          return [result.config, result.jobs, result.soul];
+        });
         break;
       }
       case 'config':
-        finishWithErrors('Merged config for all profiles', mergeConfig(opts));
+        finishMerge('Merged config for all profiles', () => [mergeConfig(opts)]);
         break;
       case 'jobs':
-        finishWithErrors('Merged jobs for all profiles', mergeJobs(opts));
+        finishMerge('Merged jobs for all profiles', () => [mergeJobs(opts)]);
         break;
       case 'soul':
-        finishWithErrors('Merged SOUL for all profiles', mergeSoul(opts));
+        finishMerge('Merged SOUL for all profiles', () => [mergeSoul(opts)]);
         break;
       default:
         console.error(`Unknown merge target: ${target}. Valid options: all, config, jobs, soul`);
@@ -303,21 +342,21 @@ program
   .command('config-merge')
   .description('Alias for "merge config"')
   .action((cmdOpts) => {
-    finishWithErrors('Merged config for all profiles', mergeConfig(getOptions(cmdOpts)));
+    finishMerge('Merged config for all profiles', () => [mergeConfig(getOptions(cmdOpts))]);
   });
 
 program
   .command('jobs-merge')
   .description('Alias for "merge jobs"')
   .action((cmdOpts) => {
-    finishWithErrors('Merged jobs for all profiles', mergeJobs(getOptions(cmdOpts)));
+    finishMerge('Merged jobs for all profiles', () => [mergeJobs(getOptions(cmdOpts))]);
   });
 
 program
   .command('soul-merge')
   .description('Alias for "merge soul"')
   .action((cmdOpts) => {
-    finishWithErrors('Merged SOUL for all profiles', mergeSoul(getOptions(cmdOpts)));
+    finishMerge('Merged SOUL for all profiles', () => [mergeSoul(getOptions(cmdOpts))]);
   });
 
 program
