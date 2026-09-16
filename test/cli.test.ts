@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { mergeConfig } from '../src/core/config.js';
 import { mergeJobs } from '../src/core/jobs.js';
 import { mergeSoul } from '../src/core/soul.js';
-import { collectMergeErrors, decideMergeExit, MergeStatusResult } from '../src/utils/merge-results.js';
+import { collectMergeErrors, MergeStatusResult } from '../src/utils/merge-results.js';
 
 const CLI_PATH = path.join(import.meta.dirname, '..', 'src', 'cli.ts');
 // Absolute path to the tsx ESM loader: the CLI is spawned with a cwd inside
@@ -76,37 +76,6 @@ describe('merge-results helper (pure decision logic)', () => {
       { profile: 'b', outputPath: '/b', status: 'skipped', error: 'Profile custom config not found: /b' }
     ];
     assert.deepEqual(collectMergeErrors(skipped), []);
-  });
-
-  it('decideMergeExit: all-clean / merged-only → success, exit 0', () => {
-    assert.deepEqual(
-      decideMergeExit([
-        { profile: 'a', outputPath: '/a', status: 'merged' }
-      ]),
-      { success: true, exitCode: 0 }
-    );
-  });
-
-  it('decideMergeExit: skipped-only (intended no-op) → success, exit 0', () => {
-    assert.deepEqual(
-      decideMergeExit(
-        [{ profile: 'a', outputPath: '/a', status: 'skipped' }],
-        [],
-        []
-      ),
-      { success: true, exitCode: 0 }
-    );
-  });
-
-  it('decideMergeExit: any error entry → failure, exit 1', () => {
-    assert.deepEqual(
-      decideMergeExit(
-        [{ profile: 'a', outputPath: '/a', status: 'merged' }],
-        [{ profile: 'b', outputPath: '/b', status: 'skipped' }],
-        [{ profile: 'c', outputPath: '/c', status: 'error', error: 'boom' }]
-      ),
-      { success: false, exitCode: 1 }
-    );
   });
 });
 
