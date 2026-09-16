@@ -35,24 +35,3 @@ export function collectMergeErrors(...arrays: MergeStatusResult[][]): MergeStatu
   }
   return errors;
 }
-
-/**
- * Exit-code / banner decision for a CLI action that ran one or more
- * per-profile merge steps.
- *
- * - any `status: 'error'` entry → failure: exit 1, no success banner.
- * - only `merged` / `skipped` entries (or no entries at all) → success:
- *   exit 0, success banner. `skipped` is the intended no-op behavior for
- *   profiles without a custom source and never fails the run.
- */
-export interface MergeRunDecision {
-  /** True when no merge errors were found; the CLI may print its banner. */
-  success: boolean;
-  /** Process exit code: 0 on success, 1 when any entry has status 'error'. */
-  exitCode: 0 | 1;
-}
-
-export function decideMergeExit(...arrays: MergeStatusResult[][]): MergeRunDecision {
-  const hasErrors = arrays.some((array) => array.some((entry) => entry?.status === 'error'));
-  return hasErrors ? { success: false, exitCode: 1 } : { success: true, exitCode: 0 };
-}
