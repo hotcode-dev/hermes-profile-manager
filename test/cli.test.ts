@@ -759,3 +759,158 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
 });
+
+describe('CLI --dry-run reports results without writing to disk', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-dryrun-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /**
+   * The global `-d, --dry-run` flag is a program-level commander option
+   * (src/cli.ts), so it must be placed BEFORE the subcommand:
+   * `hpm --dry-run sync`, not `hpm sync --dry-run`. These tests pin that
+   * placement at the CLI boundary.
+   *
+   * The side-effect-free contract these tests lock in:
+   *   1. no output files written (profiles/<p>/config.yaml,
+   *      profiles/<p>/cron/jobs.json, profiles/<p>/SOUL.md)
+   *   2. no symlinks created (profiles/<p>/skills|plugins,
+   *      $HERMES_HOME/plugins, $HERMES_HOME/profiles)
+   *   3. exit code and reporting identical to a real run (dry-run never
+   *      masks errors)
+   *   4. a real (non-dry) run on the same workspace DOES write, proving the
+   *      absence assertions above are meaningful
+   */
+
+  /** Walks dir and returns the paths of every symlink found inside it. */
+  function collectSymlinks(dir: string): string[] {
+    if (!fs.existsSync(dir)) {
+      return [];
+    }
+    const found: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      const lstat = fs.lstatSync(p);
+      if (lstat.isSymbolicLink()) {
+        found.push(p);
+      } else if (lstat.isDirectory()) {
+        found.push(...collectSymlinks(p));
+      }
+    }
+    return found;
+  }
+
+  it('sync --dry-run exits 0, prints the success banner, and writes nothing', () => {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    const emptyDir = path.join(tmpDir, 'profiles', 'empty');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.mkdirSync(emptyDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+    fs.writeFileSync(path.join(goodDir, 'SOUL.custom.md'), '# good custom soul\n');
+
+    const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
+    // No output files were written.
+    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(!fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'dry-run must not write jobs.json');
+    assert.ok(!fs.existsSync(path.join(goodDir, 'SOUL.md')), 'dry-run must not write SOUL.md');
+    // No symlinks were created (skills/plugins sources are empty no-ops, so
+    // this also proves the link step itself produced no side effects).
+    assert.deepEqual(collectSymlinks(path.join(tmpDir, 'profiles')), [], 'no symlinks under profiles/');
+    // $HERMES_HOME (pinned to <cwd>/fake-hermes by runCli) was not touched.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'fake-hermes')), 'dry-run must not create symlinks in HERMES_HOME');
+  });
+
+  it('sync --dry-run -q exits 0 and prints nothing on stdout', () => {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+
+    const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir, quiet: true });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstderr: ${r.stderr}`);
+    assert.equal(r.stdout, '', 'quiet dry-run prints nothing on stdout');
+    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+  });
+
+  it('merge config --dry-run reports merged (exit 0) but leaves config.yaml absent', () => {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+
+    const r = runCli(['--dry-run', 'merge', 'config'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+  });
+
+  it('link --dry-run (default all) creates no symlink yet exits 0 with the banner', () => {
+    scaffoldWorkspace(tmpDir);
+    // Real common skill + plugin sources, so a live run WOULD create links.
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+
+    const r = runCli(['--dry-run', 'link'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Linked skills and plugins for all profiles'), r.stdout);
+    // No symlinks anywhere under profiles/ ...
+    assert.deepEqual(collectSymlinks(path.join(tmpDir, 'profiles')), [], 'no symlinks under profiles/');
+    // ... and none in $HERMES_HOME/plugins either.
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'fake-hermes', 'plugins')),
+      'dry-run must not create symlinks in HERMES_HOME/plugins'
+    );
+  });
+
+  it('sync --dry-run on a failing workspace still exits 1 and reports the error (dry-run does not mask errors)', () => {
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+    // A bare scalar is valid YAML but not an object → status:'error'.
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+
+    const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `success banner must not print on failure:\n${r.stdout}`);
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    assert.match(r.stderr, /Failed: 1 profile\(s\) had merge errors/);
+    // The run only skipped the writes: nothing was mutated.
+    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(!fs.existsSync(path.join(badDir, 'config.yaml')), 'dry-run must not write config.yaml');
+  });
+
+  it('(guard) a non-dry sync on the same workspace DOES write the outputs', () => {
+    // Proves the absence assertions above are meaningful: the identical
+    // workspace without --dry-run writes every expected artifact.
+    scaffoldWorkspace(tmpDir);
+    const goodDir = path.join(tmpDir, 'profiles', 'good');
+    fs.mkdirSync(goodDir, { recursive: true });
+    fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
+    fs.writeFileSync(path.join(goodDir, 'SOUL.custom.md'), '# good custom soul\n');
+    fs.mkdirSync(path.join(goodDir, 'cron'), { recursive: true });
+    fs.writeFileSync(
+      path.join(goodDir, 'cron', 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n'
+    );
+
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(fs.existsSync(path.join(goodDir, 'config.yaml')), 'real sync must write config.yaml');
+    assert.ok(fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'real sync must write jobs.json');
+    assert.ok(fs.existsSync(path.join(goodDir, 'SOUL.md')), 'real sync must write SOUL.md');
+  });
+});
