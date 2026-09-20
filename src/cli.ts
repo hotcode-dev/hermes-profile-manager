@@ -212,15 +212,17 @@ program
   .action((targetDir, cmdOpts) => {
     const globalOpts = program.opts();
     const logger = globalOpts.quiet ? () => {} : console.log;
+    // Global `-d, --dry-run` must make init side-effect-free too (like
+    // every other command): the scaffolding files and the initial sync are
+    // only reported, never written to disk. Hoisted once for the
+    // initWorkspace call and the banner wording below.
+    const dryRun = Boolean(globalOpts.dryRun);
     const result = initWorkspace({
       targetDir: targetDir || process.cwd(),
       profileName: cmdOpts.profile,
       force: cmdOpts.force,
       runSync: cmdOpts.sync,
-      // Global `-d, --dry-run` must make init side-effect-free too (like
-      // every other command): the scaffolding files and the initial sync are
-      // only reported, never written to disk.
-      dryRun: Boolean(globalOpts.dryRun),
+      dryRun,
       logger
     });
 
@@ -247,7 +249,7 @@ program
       // Under --dry-run no files were written: createdFiles holds the
       // would-be creates, so phrase the count as a preview to stay honest.
       console.log(
-        Boolean(globalOpts.dryRun)
+        dryRun
           ? `  - Files to create: ${result.createdFiles.length}`
           : `  - Files created: ${result.createdFiles.length}`
       );
