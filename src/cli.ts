@@ -244,7 +244,13 @@ program
     if (!program.opts().quiet) {
       console.log(`\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`);
       console.log(`  - Profile created: ${result.profileName}`);
-      console.log(`  - Files created: ${result.createdFiles.length}`);
+      // Under --dry-run no files were written: createdFiles holds the
+      // would-be creates, so phrase the count as a preview to stay honest.
+      console.log(
+        Boolean(globalOpts.dryRun)
+          ? `  - Files to create: ${result.createdFiles.length}`
+          : `  - Files created: ${result.createdFiles.length}`
+      );
       if (result.skippedFiles.length > 0) {
         console.log(`  - Files skipped (already existed): ${result.skippedFiles.length}`);
       }

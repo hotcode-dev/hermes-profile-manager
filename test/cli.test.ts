@@ -924,6 +924,15 @@ describe('CLI --dry-run reports results without writing to disk', () => {
       r.stdout.includes('✓ Successfully initialized Hermes profiles in'),
       `success banner missing:\n${r.stdout}`
     );
+    // The banner phrases the count as a preview (nothing was written).
+    assert.ok(
+      r.stdout.includes('Files to create: 5'),
+      `dry-run banner must report "Files to create":\n${r.stdout}`
+    );
+    assert.ok(
+      !r.stdout.includes('Files created:'),
+      `dry-run banner must not claim files were created:\n${r.stdout}`
+    );
     // Nothing at all was written: no profiles/ tree, no common sources, no
     // per-profile custom sources, no compiled sync outputs, no symlinks.
     assert.ok(
@@ -960,6 +969,9 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     // unrelated to this test's contract.
     const r = runCli(['init', targetDir, '--profile', 'agent-1'], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    // A real init reports the files it actually wrote.
+    assert.ok(r.stdout.includes('Files created: 5'), r.stdout);
+    assert.ok(!r.stdout.includes('Files to create:'), r.stdout);
     // Common sources
     assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'config.yaml')), 'real init must write common config.yaml');
     assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'SOUL.md')), 'real init must write common SOUL.md');
