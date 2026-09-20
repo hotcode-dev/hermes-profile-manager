@@ -913,4 +913,78 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     assert.ok(fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'real sync must write jobs.json');
     assert.ok(fs.existsSync(path.join(goodDir, 'SOUL.md')), 'real sync must write SOUL.md');
   });
+
+  it('init --dry-run exits 0, prints the success banner, and writes nothing under the target dir', () => {
+    const targetDir = path.join(tmpDir, 'dry-init');
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const r = runCli(['--dry-run', 'init', targetDir], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(
+      r.stdout.includes('✓ Successfully initialized Hermes profiles in'),
+      `success banner missing:\n${r.stdout}`
+    );
+    // The banner phrases the count as a preview (nothing was written).
+    assert.ok(
+      r.stdout.includes('Files to create: 5'),
+      `dry-run banner must report "Files to create":\n${r.stdout}`
+    );
+    assert.ok(
+      !r.stdout.includes('Files created:'),
+      `dry-run banner must not claim files were created:\n${r.stdout}`
+    );
+    // Nothing at all was written: no profiles/ tree, no common sources, no
+    // per-profile custom sources, no compiled sync outputs, no symlinks.
+    assert.ok(
+      !fs.existsSync(path.join(targetDir, 'profiles')),
+      'dry-run init must not create the profiles/ tree at all'
+    );
+    // $HERMES_HOME (pinned to <cwd>/fake-hermes by runCli) was not touched.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'fake-hermes')), 'dry-run init must not touch HERMES_HOME');
+  });
+
+  it('init --dry-run -q exits 0 and prints nothing on stdout', () => {
+    const targetDir = path.join(tmpDir, 'quiet-dry-init');
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const r = runCli(['--dry-run', 'init', targetDir], { cwd: tmpDir, quiet: true });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstderr: ${r.stderr}`);
+    assert.equal(r.stdout, '', 'quiet dry-run prints nothing on stdout');
+    assert.ok(
+      !fs.existsSync(path.join(targetDir, 'profiles')),
+      'quiet dry-run init must not create the profiles/ tree'
+    );
+  });
+
+  it('(guard) a real (non-dry) init on the same target DOES create the files', () => {
+    // Proves the absence assertions above are meaningful: the identical
+    // target without --dry-run scaffolds the full profile tree AND runs the
+    // initial sync (compiled outputs appear).
+    const targetDir = path.join(tmpDir, 'real-init');
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    // Use the LONG form of the profile option: the short form `-p` is
+    // shadowed by the program-level `-p, --profiles <profiles...>` option
+    // (commander routes it to the parent), a pre-existing CLI quirk
+    // unrelated to this test's contract.
+    const r = runCli(['init', targetDir, '--profile', 'agent-1'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    // A real init reports the files it actually wrote.
+    assert.ok(r.stdout.includes('Files created: 5'), r.stdout);
+    assert.ok(!r.stdout.includes('Files to create:'), r.stdout);
+    // Common sources
+    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'config.yaml')), 'real init must write common config.yaml');
+    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'SOUL.md')), 'real init must write common SOUL.md');
+    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'skills')), 'real init must create skills dir');
+    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'plugins')), 'real init must create plugins dir');
+    // Per-profile custom sources
+    const agentDir = path.join(targetDir, 'profiles', 'agent-1');
+    assert.ok(fs.existsSync(path.join(agentDir, 'config.custom.yaml')), 'real init must write config.custom.yaml');
+    assert.ok(fs.existsSync(path.join(agentDir, 'SOUL.custom.md')), 'real init must write SOUL.custom.md');
+    assert.ok(fs.existsSync(path.join(agentDir, 'cron', 'jobs.custom.json')), 'real init must write jobs.custom.json');
+    // Compiled outputs from the real initial sync
+    assert.ok(fs.existsSync(path.join(agentDir, 'config.yaml')), 'real initial sync must write config.yaml');
+    assert.ok(fs.existsSync(path.join(agentDir, 'SOUL.md')), 'real initial sync must write SOUL.md');
+    assert.ok(fs.existsSync(path.join(agentDir, 'cron', 'jobs.json')), 'real initial sync must write jobs.json');
+  });
 });

@@ -7,6 +7,13 @@ export interface InitOptions {
   profileName?: string;
   force?: boolean;
   runSync?: boolean;
+  /**
+   * When true, no filesystem side effects are made: the scaffolding files
+   * and directories are only recorded (in `createdFiles`) and the initial
+   * sync is skipped. Mirrors the side-effect-free `dryRun` contract of the
+   * merge and link steps.
+   */
+  dryRun?: boolean;
   logger?: (msg: string) => void;
 }
 
@@ -62,6 +69,7 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   const log = options.logger || console.log;
   const force = Boolean(options.force);
   const runSync = options.runSync !== false;
+  const dryRun = Boolean(options.dryRun);
 
   const profilesDir = path.join(targetDir, 'profiles');
   const commonDir = path.join(profilesDir, 'common');
@@ -71,6 +79,14 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   const skippedFiles: string[] = [];
 
   function ensureFile(filePath: string, content: string): void {
+    // Dry-run: record the would-be creation without touching the disk
+    // (neither the parent directories nor the file itself).
+    if (dryRun) {
+      createdFiles.push(filePath);
+      log(`Would create: ${path.relative(targetDir, filePath)}`);
+      return;
+    }
+
     const dir = path.dirname(filePath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -89,8 +105,10 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   ensureFile(path.join(commonDir, 'SOUL.md'), DEFAULT_COMMON_SOUL);
 
   // Common directories
-  fs.mkdirSync(path.join(commonDir, 'skills'), { recursive: true });
-  fs.mkdirSync(path.join(commonDir, 'plugins'), { recursive: true });
+  if (!dryRun) {
+    fs.mkdirSync(path.join(commonDir, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(commonDir, 'plugins'), { recursive: true });
+  }
 
   // Initial profile scaffolding
   ensureFile(path.join(profileDir, 'config.custom.yaml'), DEFAULT_CUSTOM_CONFIG);
@@ -104,17 +122,27 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
     skippedFiles
   };
 
-  if (runSync) {
+  if (runSync && !dryRun) {
     log('\nRunning initial sync to compile profile configurations...');
     // syncAll records per-profile merge failures as `status: 'error'` entries
     // in the returned arrays and captures link failures into
     // `result.linkErrors` (it does not abort on those), so the result here is
     // the failure signal: the CLI inspects it to gate the success banner and
     // exit code, matching the `sync` / `merge-all` contract.
+    //
+    // Skipped under dryRun: the scaffolding files above were NOT written to
+    // disk, so the sources the sync reads (profiles/common/config.yaml,
+    // profiles/common/SOUL.md, profiles/<p>/config.custom.yaml, ...) do not
+    // exist yet — running the sync would both fail those preconditions AND
+    // violate the side-effect-free dry-run contract by writing compiled
+    // outputs (config.yaml, cron/jobs.json, SOUL.md, symlinks). The dry-run
+    // is a pure preview: it reports the would-be scaffold and stops.
     result.syncResult = syncAll({
       rootDir: targetDir,
       logger: log
     });
+  } else if (dryRun && runSync) {
+    log('\nDry run: initial sync skipped (no files were written to disk).');
   }
 
   return result;

@@ -210,12 +210,19 @@ program
   .option('-f, --force', 'Overwrite existing files if they exist', false)
   .option('--no-sync', 'Do not run sync immediately after initialization')
   .action((targetDir, cmdOpts) => {
-    const logger = program.opts().quiet ? () => {} : console.log;
+    const globalOpts = program.opts();
+    const logger = globalOpts.quiet ? () => {} : console.log;
+    // Global `-d, --dry-run` must make init side-effect-free too (like
+    // every other command): the scaffolding files and the initial sync are
+    // only reported, never written to disk. Hoisted once for the
+    // initWorkspace call and the banner wording below.
+    const dryRun = Boolean(globalOpts.dryRun);
     const result = initWorkspace({
       targetDir: targetDir || process.cwd(),
       profileName: cmdOpts.profile,
       force: cmdOpts.force,
       runSync: cmdOpts.sync,
+      dryRun,
       logger
     });
 
@@ -239,7 +246,13 @@ program
     if (!program.opts().quiet) {
       console.log(`\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`);
       console.log(`  - Profile created: ${result.profileName}`);
-      console.log(`  - Files created: ${result.createdFiles.length}`);
+      // Under --dry-run no files were written: createdFiles holds the
+      // would-be creates, so phrase the count as a preview to stay honest.
+      console.log(
+        dryRun
+          ? `  - Files to create: ${result.createdFiles.length}`
+          : `  - Files created: ${result.createdFiles.length}`
+      );
       if (result.skippedFiles.length > 0) {
         console.log(`  - Files skipped (already existed): ${result.skippedFiles.length}`);
       }

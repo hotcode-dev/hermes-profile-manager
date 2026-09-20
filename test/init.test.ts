@@ -186,4 +186,81 @@ describe('initWorkspace', () => {
       /- just/
     );
   });
+
+  it('dryRun records the would-be files but writes nothing to disk and skips the initial sync', () => {
+    const logs: string[] = [];
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'agent-1',
+      dryRun: true,
+      logger: (msg) => logs.push(msg)
+    });
+
+    // The five scaffolding files are reported as would-be creates...
+    assert.equal(result.createdFiles.length, 5);
+    assert.equal(result.skippedFiles.length, 0);
+    // ...but NOTHING was written: no profiles/ tree at all (files, common
+    // skills/plugins directories, or compiled sync outputs).
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'dryRun init must not create profiles/');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml')),
+      'dryRun init must not write common config.yaml'
+    );
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles', 'agent-1', 'cron', 'jobs.custom.json')),
+      'dryRun init must not write jobs.custom.json'
+    );
+    // The initial sync was skipped entirely: no syncResult, no compiled
+    // outputs, and the dry-run notice was logged instead.
+    assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
+    assert.ok(
+      logs.some((l) => l.includes('Dry run: initial sync skipped')),
+      `dry-run sync notice missing: ${JSON.stringify(logs)}`
+    );
+    assert.ok(
+      logs.some((l) => l.includes('Would create:')),
+      `would-create preview missing: ${JSON.stringify(logs)}`
+    );
+  });
+
+  it('dryRun on a pre-seeded workspace still writes nothing and reports the would-be files', () => {
+    // Even when the sources already exist on disk, dryRun must not run the
+    // (writing) initial sync and must not mutate anything.
+    initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      logger: () => {}
+    });
+    const before = new Set(
+      collectAllPaths(path.join(tmpDir, 'profiles'))
+    );
+
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      logger: () => {}
+    });
+
+    // No new files or directories appeared.
+    assert.deepEqual(new Set(collectAllPaths(path.join(tmpDir, 'profiles'))), before);
+    // No sync ran (a real sync on this workspace would write compiled outputs).
+    assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
+  });
 });
+
+/** Returns the relative paths of every file and directory under dir. */
+function collectAllPaths(dir: string): string[] {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+  const found: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    found.push(path.relative(dir, p));
+    if (entry.isDirectory()) {
+      found.push(...collectAllPaths(p).map((rel) => path.join(path.relative(dir, p), rel)));
+    }
+  }
+  return found;
+}
