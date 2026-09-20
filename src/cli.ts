@@ -210,12 +210,17 @@ program
   .option('-f, --force', 'Overwrite existing files if they exist', false)
   .option('--no-sync', 'Do not run sync immediately after initialization')
   .action((targetDir, cmdOpts) => {
-    const logger = program.opts().quiet ? () => {} : console.log;
+    const globalOpts = program.opts();
+    const logger = globalOpts.quiet ? () => {} : console.log;
     const result = initWorkspace({
       targetDir: targetDir || process.cwd(),
       profileName: cmdOpts.profile,
       force: cmdOpts.force,
       runSync: cmdOpts.sync,
+      // Global `-d, --dry-run` must make init side-effect-free too (like
+      // every other command): the scaffolding files and the initial sync are
+      // only reported, never written to disk.
+      dryRun: Boolean(globalOpts.dryRun),
       logger
     });
 
