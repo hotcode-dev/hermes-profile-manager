@@ -786,6 +786,9 @@ describe('CLI --dry-run reports results without writing to disk', () => {
    *      masks errors)
    *   4. a real (non-dry) run on the same workspace DOES write, proving the
    *      absence assertions above are meaningful
+   *   5. stdout stays honest about the dry run: no "written to" claims and
+   *      success banners are preview-worded (prefixed "Would "), so the
+   *      output never asserts a side effect that did not happen
    */
 
   /** Walks dir and returns the paths of every symlink found inside it. */
@@ -817,8 +820,10 @@ describe('CLI --dry-run reports results without writing to disk', () => {
 
     const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
-    // No output files were written.
+    // Honest preview wording: the dry-run banner is prefixed "Would ", and no
+    // merge line claims a file was written.
+    assert.ok(r.stdout.includes('✓ Would Synced all Hermes profiles successfully'), r.stdout);
+    assert.ok(!r.stdout.includes('written to'), `dry-run stdout must not claim files were written:\n${r.stdout}`);
     assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
     assert.ok(!fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'dry-run must not write jobs.json');
     assert.ok(!fs.existsSync(path.join(goodDir, 'SOUL.md')), 'dry-run must not write SOUL.md');
@@ -849,7 +854,11 @@ describe('CLI --dry-run reports results without writing to disk', () => {
 
     const r = runCli(['--dry-run', 'merge', 'config'], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    // Honest preview wording: the dry-run banner is prefixed "Would " and the
+    // merge line phrases the write as a preview, not a completed action.
+    assert.ok(r.stdout.includes('✓ Would Merged config for all profiles'), r.stdout);
+    assert.ok(!r.stdout.includes('written to'), `dry-run stdout must not claim files were written:\n${r.stdout}`);
+    assert.ok(r.stdout.includes('Would merge config to:'), `dry-run merge line should be preview-worded:\n${r.stdout}`);
     assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
   });
 
@@ -863,7 +872,15 @@ describe('CLI --dry-run reports results without writing to disk', () => {
 
     const r = runCli(['--dry-run', 'link'], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(r.stdout.includes('✓ Linked skills and plugins for all profiles'), r.stdout);
+    // Honest preview wording: the dry-run banner is prefixed "Would ", and no
+    // line claims a link was created.
+    assert.ok(r.stdout.includes('✓ Would Linked skills and plugins for all profiles'), r.stdout);
+    // Honest preview wording on the per-item lines: the banner is the only
+    // line mentioning "Linked", and every other line phrases the link as a
+    // preview ("Would link ..."), never a completed action.
+    const nonBannerLines = r.stdout.split('\n').filter((l) => l.trim() !== '' && !l.includes('✓'));
+    assert.ok(!nonBannerLines.some((l) => l.includes('Linked ')), `no "Linked" claim in per-item lines:\n${r.stdout}`);
+    assert.ok(nonBannerLines.every((l) => l.startsWith('Would link ')), `dry-run link lines should be preview-worded:\n${r.stdout}`);
     // No symlinks anywhere under profiles/ ...
     assert.deepEqual(collectSymlinks(path.join(tmpDir, 'profiles')), [], 'no symlinks under profiles/');
     // ... and none in $HERMES_HOME/plugins either.

@@ -55,7 +55,13 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
         ensureSymlinkSync(targetRel, linkPath, { logger: log });
       }
 
-      log(`Linked ${skillName} to ${profile} profile`);
+      // Under --dry-run the symlink was not created, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would link ${skillName} to ${profile} profile`
+          : `Linked ${skillName} to ${profile} profile`
+      );
       results.push({
         source: targetRel,
         destination: linkPath,
@@ -107,7 +113,13 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
         ensureSymlinkSync(targetRel, linkPath, { logger: log });
       }
 
-      log(`Linked ${pluginName} to ${profile} profile`);
+      // Under --dry-run the symlink was not created, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would link ${pluginName} to ${profile} profile`
+          : `Linked ${pluginName} to ${profile} profile`
+      );
       results.push({
         source: targetRel,
         destination: linkPath,
@@ -127,7 +139,13 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
       ensureSymlinkSync(pluginSource, linkPath, { logger: log });
     }
 
-    log(`Linked ${pluginName} to ${hermesPluginsDir}`);
+    // Under --dry-run the symlink was not created, so phrase the line as a
+    // preview rather than asserting a side effect that did not happen.
+    log(
+      options.dryRun
+        ? `Would link ${pluginName} to ${hermesPluginsDir}`
+        : `Linked ${pluginName} to ${hermesPluginsDir}`
+    );
     results.push({
       source: pluginSource,
       destination: linkPath,
@@ -158,7 +176,13 @@ export function linkHermes(options: LinkOptions = {}): LinkResult {
     ensureSymlinkSync(profilesSrc, hermesProfilesDest, { logger: log });
   }
 
-  log(`Linked Hermes profiles to ${hermesDir}`);
+  // Under --dry-run the symlink was not created, so phrase the line as a
+  // preview rather than asserting a side effect that did not happen.
+  log(
+    options.dryRun
+      ? `Would link Hermes profiles to ${hermesDir}`
+      : `Linked Hermes profiles to ${hermesDir}`
+  );
   return {
     source: profilesSrc,
     destination: hermesProfilesDest,

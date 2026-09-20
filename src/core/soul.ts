@@ -67,7 +67,13 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
         atomicWriteFileSync(outputSoulPath, combined);
       }
 
-      log(`Merged SOUL written to: ${outputSoulPath}`);
+      // Under --dry-run the file was not written, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would merge SOUL to: ${outputSoulPath}`
+          : `Merged SOUL written to: ${outputSoulPath}`
+      );
       results.push({
         profile,
         outputPath: outputSoulPath,

@@ -88,7 +88,13 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
         atomicWriteFileSync(outputPath, mergedYaml);
       }
 
-      log(`Merged config written to: ${outputPath}`);
+      // Under --dry-run the file was not written, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would merge config to: ${outputPath}`
+          : `Merged config written to: ${outputPath}`
+      );
       results.push({
         profile,
         outputPath,

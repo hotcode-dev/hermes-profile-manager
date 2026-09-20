@@ -160,7 +160,13 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
         atomicWriteFileSync(outputJobsPath, formattedJson);
       }
 
-      log(`Merged jobs written to: ${outputJobsPath}`);
+      // Under --dry-run the file was not written, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would merge jobs to: ${outputJobsPath}`
+          : `Merged jobs written to: ${outputJobsPath}`
+      );
       results.push({
         profile,
         outputPath: outputJobsPath,

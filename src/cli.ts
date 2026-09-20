@@ -56,8 +56,19 @@ function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): voi
     process.exit(1);
   }
   if (!program.opts().quiet) {
-    console.log(`\u2713 ${banner}`);
+    console.log(`\u2713 ${dryRunBanner(banner)}`);
   }
+}
+
+/**
+ * The success banners assert that side effects happened (files written,
+ * symlinks linked). Under `--dry-run` none of those happened, so prefix the
+ * banner with "Would " to phrase it as a preview and stay honest — mirroring
+ * the honest preview wording the core modules and `init --dry-run` already
+ * use. Non-dry-run banners are returned unchanged.
+ */
+function dryRunBanner(banner: string): string {
+  return program.opts().dryRun ? `Would ${banner}` : banner;
 }
 
 /**
@@ -157,7 +168,7 @@ function reportSyncErrors(
  */
 function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[], syncError?: string): void {
   if (reportSyncErrors(arrays, linkErrors, syncError) && !program.opts().quiet) {
-    console.log(`\u2713 ${banner}`);
+    console.log(`\u2713 ${dryRunBanner(banner)}`);
   }
 }
 
@@ -198,7 +209,7 @@ function safeLink(banner: string, operation: () => void): void {
     process.exit(1);
   }
   if (!program.opts().quiet) {
-    console.log(`\u2713 ${banner}`);
+    console.log(`\u2713 ${dryRunBanner(banner)}`);
   }
 }
 
@@ -331,7 +342,7 @@ program
           finishLinkErrors(result.linkErrors);
         }
         if (!program.opts().quiet) {
-          console.log('\u2713 Linked skills and plugins for all profiles');
+          console.log(`\u2713 ${dryRunBanner('Linked skills and plugins for all profiles')}`);
         }
         break;
       }
