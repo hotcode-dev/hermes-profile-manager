@@ -348,50 +348,120 @@ describe('standalone merge sub-commands still surface "no custom found"', () => 
   it('standalone mergeJobs with NO profiles and an empty workspace still throws the loud error', () => {
     // Regression guard: the fix must NOT weaken the no-target case. With no
     // -p flag on a workspace without any profile dirs, the standalone
-    // command still fails loudly ("nothing to merge").
-    // Note: no common dir needed for jobs — mergeJobs has no common-source
-    // precondition.
-    const res = (() => {
-      try {
-        return { threw: false, res: mergeJobs({ rootDir: tmpDir, logger: () => {} }) };
-      } catch (err) {
-        return { threw: true, err: err instanceof Error ? err.message : String(err) };
-      }
-    })();
-    assert.equal(res.threw, true, 'expected the no-target standalone mergeJobs to throw');
-    assert.match(res.err, /no profiles with cron\/jobs\.custom\.json found/);
+    // command still fails loudly. The loud error is the shared
+    // "No profiles found under" no-targets guard — the SAME error
+    // mergeConfig throws, so all three sub-commands agree (this used to be
+    // the concern-specific "no profiles with cron/jobs.custom.json found",
+    // which diverged from mergeConfig).
+    let errMsg = '';
+    let threw = false;
+    try {
+      mergeJobs({ rootDir: tmpDir, logger: () => {} });
+    } catch (err) {
+      threw = true;
+      errMsg = err instanceof Error ? err.message : String(err);
+    }
+    assert.equal(threw, true, 'expected the no-target standalone mergeJobs to throw');
+    assert.match(errMsg, /No profiles found under/);
   });
 
   it('standalone mergeSoul with NO profiles and an empty workspace still throws the loud error', () => {
     // Same guard for soul: mergeSoul requires the common SOUL.md to even
-    // start, so provide it — the throw under test is the per-profile
-    // "nothing to merge" guard, not the common-source precondition.
+    // start, so provide it — the throw under test is the shared no-targets
+    // "No profiles found under" guard, not the common-source precondition.
     const commonDir = path.join(tmpDir, 'profiles', 'common');
     fs.mkdirSync(commonDir, { recursive: true });
     fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
 
-    const res = (() => {
-      try {
-        return { threw: false, res: mergeSoul({ rootDir: tmpDir, logger: () => {} }) };
-      } catch (err) {
-        return { threw: true, err: err instanceof Error ? err.message : String(err) };
-      }
-    })();
-    assert.equal(res.threw, true, 'expected the no-target standalone mergeSoul to throw');
-    assert.match(res.err, /no profiles with SOUL\.custom\.md found/);
+    let errMsg = '';
+    let threw = false;
+    try {
+      mergeSoul({ rootDir: tmpDir, logger: () => {} });
+    } catch (err) {
+      threw = true;
+      errMsg = err instanceof Error ? err.message : String(err);
+    }
+    assert.equal(threw, true, 'expected the no-target standalone mergeSoul to throw');
+    assert.match(errMsg, /No profiles found under/);
   });
 
-  it('standalone mergeJobs with an empty explicit profiles array is a clean no-op (mergeConfig semantics)', () => {
-    // Mirrors mergeConfig's `!options.profiles` truthiness exactly: a
-    // provided (but empty) `profiles` array is treated as EXPLICITLY
-    // provided, so the run is a clean no-op instead of the top-level
-    // "no profiles found" throw. The loop falls back to auto-discovered
-    // profiles (same as mergeConfig), which here is just `worker` —
-    // reported as a `skipped` entry, not a throw.
+  it('explicit empty profiles: [] on an empty workspace throws the same no-profiles error in all three sub-commands', () => {
+    // Alignment regression: mergeConfig already threw `No profiles found
+    // under` for an empty target list, while mergeJobs/mergeSoul silently
+    // returned `[]` for the exact same call (a divergence baked in by the
+    // explicit-`profiles` exemption). An empty list names no profile, so all
+    // three must now fail identically with the shared no-targets error.
+    // Common sources are provided so the throw under test is the no-targets
+    // guard, not the common-source preconditions.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
+    // No profile subdirs besides common: the empty explicit list resolves
+    // to an empty target list, exactly like `profiles: undefined`.
+
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, profiles: [], logger: () => {} }),
+      /No profiles found under/
+    );
+    assert.throws(
+      () => mergeJobs({ rootDir: tmpDir, profiles: [], logger: () => {} }),
+      /No profiles found under/
+    );
+    assert.throws(
+      () => mergeSoul({ rootDir: tmpDir, profiles: [], logger: () => {} }),
+      /No profiles found under/
+    );
+  });
+
+  it('explicit empty profiles: [] with allowEmpty: true on an empty workspace returns [] in all three sub-commands', () => {
+    // Same contract as above with the aggregate-path escape hatch: an empty
+    // target list is a clean no-op (`[]`) instead of the top-level throw,
+    // identically for config/jobs/soul.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
+
+    assert.deepEqual(
+      mergeConfig({ rootDir: tmpDir, profiles: [], allowEmpty: true, logger: () => {} }),
+      []
+    );
+    assert.deepEqual(
+      mergeJobs({ rootDir: tmpDir, profiles: [], allowEmpty: true, logger: () => {} }),
+      []
+    );
+    assert.deepEqual(
+      mergeSoul({ rootDir: tmpDir, profiles: [], allowEmpty: true, logger: () => {} }),
+      []
+    );
+  });
+
+  it('explicit empty profiles: [] falls back to auto-discovery on a workspace WITH profiles (per-profile skipped no-op, all three agree)', () => {
+    // An empty explicit array names no profile, so all three sub-commands
+    // fall back to the auto-discovered profiles — identical to omitting
+    // `profiles` — and the run is a per-profile `skipped` no-op instead of
+    // a top-level throw (the worker profile has no custom source).
     fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
-    const res = mergeJobs({ rootDir: tmpDir, profiles: [], logger: () => {} });
-    assert.equal(res.length, 1);
-    assert.equal(res[0].profile, 'worker');
-    assert.equal(res[0].status, 'skipped');
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
+
+    assert.deepEqual(
+      mergeConfig({ rootDir: tmpDir, profiles: [], logger: () => {} })
+        .map((r) => ({ profile: r.profile, status: r.status })),
+      [{ profile: 'worker', status: 'skipped' }]
+    );
+    assert.deepEqual(
+      mergeJobs({ rootDir: tmpDir, profiles: [], logger: () => {} })
+        .map((r) => ({ profile: r.profile, status: r.status })),
+      [{ profile: 'worker', status: 'skipped' }]
+    );
+    assert.deepEqual(
+      mergeSoul({ rootDir: tmpDir, profiles: [], logger: () => {} })
+        .map((r) => ({ profile: r.profile, status: r.status })),
+      [{ profile: 'worker', status: 'skipped' }]
+    );
   });
 });
