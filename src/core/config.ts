@@ -10,11 +10,22 @@ export interface MergeConfigOptions {
   logger?: (msg: string) => void;
   dryRun?: boolean;
   /**
-   * When true, a run where no profile has a valid config.custom.yaml source is
-   * treated as a successful no-op (returns the per-profile skipped/error
-   * results) instead of throwing. Used by the aggregate sync path; standalone
-   * CLI calls keep the default (false) and still surface the "nothing to
-   * merge" error.
+   * When true, a run with nothing to merge is a successful no-op (returns
+   * the per-profile skipped/error results, or `[]` for an empty target list)
+   * instead of throwing. Used by the aggregate sync path; standalone CLI
+   * calls keep the default (false) and still surface the "nothing to merge"
+   * error.
+   *
+   * Two "no targets" situations, both governed by this flag:
+   * - An EMPTY target list (no profile subdirs found, or an explicit
+   *   `profiles: []` on a profile-less workspace) throws
+   *   `No profiles found under <dir>` unless `allowEmpty` — identical to
+   *   mergeJobs/mergeSoul. An empty list names no profile, so it is NOT
+   *   exempted.
+   * - A NON-EMPTY explicit `profiles` list is exempted from the
+   *   "nothing merged" throw: an explicitly targeted profile that simply
+   *   has no config.custom.yaml source is a per-profile `skipped` no-op
+   *   (exit 0), not a top-level failure.
    */
   allowEmpty?: boolean;
 }

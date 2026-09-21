@@ -8,17 +8,22 @@ export interface MergeJobsOptions {
   logger?: (msg: string) => void;
   dryRun?: boolean;
   /**
-   * When true, a run where no profile has a cron/jobs.custom.json source is
-   * treated as a successful no-op (returns the per-profile skipped entries)
+   * When true, a run with nothing to merge is a successful no-op (returns
+   * the per-profile skipped entries, or `[]` for an empty target list)
    * instead of throwing. Used by the aggregate sync path; standalone CLI
    * calls keep the default (false) and still surface the "nothing to merge"
    * error.
    *
-   * The throw is additionally exempted when `profiles` is EXPLICITLY
-   * provided: an explicitly targeted profile that simply has no
-   * cron/jobs.custom.json source is a per-profile `skipped` no-op (exit 0),
-   * matching the `mergeConfig` contract — NOT a top-level "no profiles found"
-   * failure.
+   * Two "no targets" situations, both governed by this flag:
+   * - An EMPTY target list (no profile subdirs found, or an explicit
+   *   `profiles: []` on a profile-less workspace) throws
+   *   `No profiles found under <dir>` unless `allowEmpty` — identical to
+   *   mergeConfig/mergeSoul. An empty list names no profile, so it is NOT
+   *   exempted.
+   * - A NON-EMPTY explicit `profiles` list is exempted from the
+   *   "nothing to merge" throw: an explicitly targeted profile that simply
+   *   has no cron/jobs.custom.json source is a per-profile `skipped` no-op
+   *   (exit 0), not a top-level failure.
    */
   allowEmpty?: boolean;
 }
@@ -121,6 +126,15 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
     ? options.profiles
     : availableProfiles;
 
+  // No-targets guard, shared with mergeConfig/mergeSoul: an empty target
+  // list (no profile subdirs, or an explicit `profiles: []` on a profile-less
+  // workspace) is a hard "no profiles found" failure unless `allowEmpty`. An
+  // empty list names no profile, so it is NOT exempted the way a non-empty
+  // explicit list is.
+  if (targetProfiles.length === 0 && !options.allowEmpty) {
+    throw new Error(`No profiles found under ${profilesDir}`);
+  }
+
   const results: MergeJobsResult[] = [];
   let foundAnyCustom = false;
 
@@ -202,13 +216,13 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
     }
   }
 
-  // Only throw the aggregate "nothing to merge" error when no profiles were
-  // explicitly targeted. With an explicit `profiles` list the run is a
-  // per-profile no-op (skipped entries above), exactly like mergeConfig:
-  // the user named a profile, so "no profiles found under <dir>" would be
-  // both wrong and misleading. (Note: this mirrors mergeConfig's
-  // `!options.profiles` truthiness exactly — a provided-but-empty array is
-  // treated as explicitly provided and is likewise a clean no-op.)
+  // Reached only with a non-empty target list (an empty one is caught by the
+  // `No profiles found under` guard above). Throw the aggregate "nothing to
+  // merge" error only when no profiles were EXPLICITLY targeted. With a
+  // non-empty explicit `profiles` list each named profile already got a
+  // per-profile `skipped` entry above, so a top-level "no profiles with
+  // cron/jobs.custom.json found" failure would be wrong and misleading —
+  // exactly mergeConfig's `!options.profiles` gate.
   if (!foundAnyCustom && !options.profiles) {
     if (options.allowEmpty) {
       return results;

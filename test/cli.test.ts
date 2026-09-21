@@ -736,26 +736,27 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
 
-  it('merge jobs exits 1 cleanly when no profile has cron/jobs.custom.json (top-level precondition)', () => {
-    // scaffoldWorkspace creates the common sources but no profiles and no
-    // cron/jobs.custom.json, so the standalone mergeJobs (allowEmpty=false)
-    // throws the "nothing to merge" precondition.
+  it('merge jobs exits 1 cleanly when there are no profiles (top-level precondition)', () => {
+    // scaffoldWorkspace creates the common sources but no profile subdirs, so
+    // the standalone mergeJobs (allowEmpty=false) throws the shared
+    // "No profiles found under" no-targets precondition — the same error
+    // mergeConfig throws, so the sub-commands no longer diverge.
     scaffoldWorkspace(tmpDir);
     const r = runCli(['merge', 'jobs'], { cwd: tmpDir });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
-    assert.match(r.stderr, /no profiles with cron\/jobs\.custom\.json found/);
+    assert.match(r.stderr, /No profiles found under/);
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
 
-  it('jobs-merge alias exits 1 cleanly when no profile has cron/jobs.custom.json (top-level precondition)', () => {
+  it('jobs-merge alias exits 1 cleanly when there are no profiles (top-level precondition)', () => {
     scaffoldWorkspace(tmpDir);
     const r = runCli(['jobs-merge'], { cwd: tmpDir });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
-    assert.match(r.stderr, /no profiles with cron\/jobs\.custom\.json found/);
+    assert.match(r.stderr, /No profiles found under/);
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
 
