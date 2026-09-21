@@ -931,7 +931,7 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     assert.ok(fs.existsSync(path.join(goodDir, 'SOUL.md')), 'real sync must write SOUL.md');
   });
 
-  it('init --dry-run exits 0, prints the success banner, and writes nothing under the target dir', () => {
+  it('init --dry-run exits 0, prints the preview banner, and writes nothing under the target dir', () => {
     const targetDir = path.join(tmpDir, 'dry-init');
     fs.mkdirSync(targetDir, { recursive: true });
 
