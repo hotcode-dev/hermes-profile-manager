@@ -121,11 +121,13 @@ describe('initWorkspace', () => {
     assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
     // The initial profile was re-scaffolded by this run (ensureFile recreates
     // the missing cron/jobs.custom.json), so its jobs merge legitimately
-    // appears; the point is that the worker profile lacking any cron source is
-    // a benign no-op rather than an aborting error.
+    // appears. The worker profile, however, still lacks a cron source: it is
+    // reported as a visible `skipped` no-op rather than being dropped or
+    // aborting the run.
     const mainJobs = result.syncResult.jobs.find((r) => r.profile === 'main');
     assert.equal(mainJobs?.status, 'merged');
-    assert.ok(!result.syncResult.jobs.some((r) => r.profile === 'worker'));
+    const workerJobs = result.syncResult.jobs.find((r) => r.profile === 'worker');
+    assert.equal(workerJobs?.status, 'skipped');
     // config for the additional profile was merged as part of the aggregate.
     const workerConfig = path.join(workerDir, 'config.yaml');
     assert.ok(fs.existsSync(workerConfig));

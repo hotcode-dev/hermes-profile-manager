@@ -758,6 +758,69 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     assert.match(r.stderr, /no profiles with cron\/jobs\.custom\.json found/);
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
+
+  it('merge config -p <name> with no custom source exits 0 with the banner (explicit target is a no-op, not a failure)', () => {
+    // Reference behavior for the -p contract: explicitly naming a profile
+    // that lacks a custom source is a per-profile skipped no-op (exit 0).
+    //
+    // NOTE on flag placement: `-p, --profiles <names...>` is a VARIADIC
+    // program-level option, so `hpm -p real merge config` makes the
+    // variadic swallow `merge config` as more profile names (commander
+    // then errors out with usage, exit 1). The working placements are
+    // `-p <name> -- merge config` and `merge config -p <name>`; these
+    // tests pin the flag-after-subcommand form.
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
+    const r = runCli(['merge', 'config', '-p', 'real'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    assert.equal(r.stderr, '', 'clean -p merge config prints nothing on stderr');
+  });
+
+  it('merge jobs -p <name> with no cron source exits 0 with the banner (no "no profiles found" failure)', () => {
+    // Regression target: `merge jobs -p <name>` used to exit 1 with
+    // "no profiles with cron/jobs.custom.json found under ..." when the
+    // named profile had no cron source. It must now behave like merge
+    // config: a per-profile skipped no-op, exit 0.
+    // (Flag-after-subcommand placement: the variadic `-p` swallows a
+    // following subcommand, see the merge config -p test above.)
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
+    const r = runCli(['merge', 'jobs', '-p', 'real'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged jobs for all profiles'), r.stdout);
+    assert.ok(!/no profiles with cron\/jobs\.custom\.json found/.test(r.stderr), `no top-level failure:\n${r.stderr}`);
+    assert.equal(r.stderr, '', 'clean -p merge jobs prints nothing on stderr');
+  });
+
+  it('merge soul -p <name> with no SOUL source exits 0 with the banner (no "no profiles found" failure)', () => {
+    // Mirror of the merge jobs -p regression, for the SOUL concern.
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
+    const r = runCli(['merge', 'soul', '-p', 'real'], { cwd: tmpDir });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged SOUL for all profiles'), r.stdout);
+    assert.ok(!/no profiles with SOUL\.custom\.md found/.test(r.stderr), `no top-level failure:\n${r.stderr}`);
+    assert.equal(r.stderr, '', 'clean -p merge soul prints nothing on stderr');
+  });
+
+  it('jobs-merge -p <name> and soul-merge -p <name> aliases exit 0 with no source (no "no profiles found" failure)', () => {
+    // The Make-alias commands (jobs-merge / soul-merge) share the same
+    // standalone mergeJobs/mergeSoul path, so the explicit -p no-op
+    // contract must hold for the aliases too.
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
+
+    const rJobs = runCli(['jobs-merge', '-p', 'real'], { cwd: tmpDir });
+    assert.equal(rJobs.status, 0, `jobs-merge -p expected exit 0, got ${rJobs.status}\nstdout: ${rJobs.stdout}\nstderr: ${rJobs.stderr}`);
+    assert.ok(rJobs.stdout.includes('✓ Merged jobs for all profiles'), rJobs.stdout);
+    assert.equal(rJobs.stderr, '', 'clean -p jobs-merge prints nothing on stderr');
+
+    const rSoul = runCli(['soul-merge', '-p', 'real'], { cwd: tmpDir });
+    assert.equal(rSoul.status, 0, `soul-merge -p expected exit 0, got ${rSoul.status}\nstdout: ${rSoul.stdout}\nstderr: ${rSoul.stderr}`);
+    assert.ok(rSoul.stdout.includes('✓ Merged SOUL for all profiles'), rSoul.stdout);
+    assert.equal(rSoul.stderr, '', 'clean -p soul-merge prints nothing on stderr');
+  });
 });
 
 describe('CLI --dry-run reports results without writing to disk', () => {
