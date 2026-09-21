@@ -228,14 +228,26 @@ program
     // only reported, never written to disk. Hoisted once for the
     // initWorkspace call and the banner wording below.
     const dryRun = Boolean(globalOpts.dryRun);
-    const result = initWorkspace({
-      targetDir: targetDir || process.cwd(),
-      profileName: cmdOpts.profile,
-      force: cmdOpts.force,
-      runSync: cmdOpts.sync,
-      dryRun,
-      logger
-    });
+
+    // initWorkspace throws for an invalid profile name (path traversal,
+    // empty string, etc.) before any side effects occur. Wrap it in a
+    // try/catch so the CLI produces a clean one-line error + non-zero exit
+    // — matching the safeLink / finishMerge error contract.
+    let result: ReturnType<typeof initWorkspace>;
+    try {
+      result = initWorkspace({
+        targetDir: targetDir || process.cwd(),
+        profileName: cmdOpts.profile,
+        force: cmdOpts.force,
+        runSync: cmdOpts.sync,
+        dryRun,
+        logger
+      });
+    } catch (err: unknown) {
+      console.error(`\u2717 ${err instanceof Error ? err.message : String(err)}`);
+      console.error('Failed: invalid profile name. Use a single path-safe segment (letters, digits, dots, hyphens, underscores).');
+      process.exit(1);
+    }
 
     // The initial sync never throws: per-profile merge failures are recorded
     // as `status: 'error'` entries, a broken top-level source (e.g. a

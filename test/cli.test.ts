@@ -560,6 +560,44 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
     assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
   });
+
+  it('init --profile with a path-traversal name exits 1 with a clean error and writes no files', () => {
+    // The CLI exposes --profile directly; a malicious or typoed name must
+    // be rejected BEFORE any side effect, not turn into a write outside the
+    // target workspace.
+    //
+    // NOTE: the SHORT form `-p` is deliberately NOT exercised here. The
+    // program-wide `-p, --profiles <names...>` global option shadows the
+    // subcommand-level `-p, --profile` alias (commander resolves a `-p` on
+    // `init` to the global variadic `profiles` option), so `init -p X` never
+    // reaches the profile-name code path. The long `--profile` form is the
+    // documented CLI spelling for this option.
+    const siblingDir = path.join(path.dirname(tmpDir), path.basename(tmpDir) + '-pwned');
+    assert.ok(!fs.existsSync(siblingDir), 'precondition: sibling dir must not exist yet');
+
+    const r = runCli(['init', '--profile', '../../pwned'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    // No success banner...
+    assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
+    // ...no raw stack trace...
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `stderr must not contain a stack trace:\n${r.stderr}`);
+    // ...the invalid name is named on stderr, with the Failed: summary...
+    assert.match(r.stderr, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
+    assert.match(r.stderr, /Failed: invalid profile name/);
+    // ...and NOTHING was written outside the workspace.
+    assert.ok(
+      !fs.existsSync(siblingDir),
+      `no files may escape the workspace (found: ${siblingDir})`
+    );
+    assert.ok(
+      !fs.existsSync(path.join(path.dirname(tmpDir), 'pwned')),
+      'the ../pwned sibling must not have been created'
+    );
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'the rejected init must not create the workspace profiles/ tree'
+    );
+  });
 });
 
 describe('CLI sync/all/merge-all exit status reflects top-level sync failures', () => {
