@@ -173,4 +173,33 @@ describe('link operations', () => {
     assert.ok(fs.lstatSync(realProfiles).isSymbolicLink());
     assert.equal(fs.readlinkSync(realProfiles), profilesDir);
   });
+
+  it('dry run creates no symlinks and reports previews, not completed links', () => {
+    // Real common skill + plugin sources so a live run WOULD create links.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    const skillLines: string[] = [];
+    linkSkills({ rootDir: tmpDir, dryRun: true, logger: (m) => skillLines.push(m) });
+
+    const pluginLines: string[] = [];
+    linkPlugins({ rootDir: tmpDir, hermesDir, dryRun: true, logger: (m) => pluginLines.push(m) });
+
+    const hermesLines: string[] = [];
+    linkHermes({ rootDir: tmpDir, hermesDir, dryRun: true, logger: (m) => hermesLines.push(m) });
+
+    // No symlinks anywhere under profiles/ or in hermesDir.
+    assert.ok(!fs.existsSync(path.join(workerDir, 'skills', 'test-skill')), 'no profile skill link');
+    assert.ok(!fs.existsSync(path.join(workerDir, 'plugins', 'test-plugin')), 'no profile plugin link');
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins', 'test-plugin')), 'no hermes plugin link');
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'profiles')), 'no hermes profiles link');
+
+    // None of the log lines claim a link was created.
+    for (const lines of [skillLines, pluginLines, hermesLines]) {
+      assert.ok(!lines.some((l) => l.includes('Linked ')), `no "Linked" claim in:\n${lines.join('\n')}`);
+      assert.ok(lines.every((l) => l.startsWith('Would link ')), `preview wording in:\n${lines.join('\n')}`);
+    }
+  });
 });

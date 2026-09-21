@@ -55,6 +55,28 @@ timeout: 60
     assert.equal(parsed.models[0].model, 'gpt-4');
   });
 
+  it('dry run writes no file and reports a preview, not a completed write', () => {
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `name: common\n`);
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+    fs.writeFileSync(path.join(workerDir, 'config.custom.yaml'), `name: worker\n`);
+
+    const lines: string[] = [];
+    const results = mergeConfig({ rootDir: tmpDir, dryRun: true, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    // No output file was written.
+    assert.ok(!fs.existsSync(path.join(workerDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    // The log line must not claim the file was written.
+    assert.ok(!lines.some((l) => l.includes('written to')), `no "written to" claim in:\n${lines.join('\n')}`);
+    // And it phrases the write as a preview.
+    assert.ok(lines.some((l) => l.includes('Would merge config to:')), `preview wording missing in:\n${lines.join('\n')}`);
+  });
+
   it('throws when common config is missing', () => {
     assert.throws(() => {
       mergeConfig({ rootDir: tmpDir, logger: () => {} });

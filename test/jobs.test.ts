@@ -51,6 +51,24 @@ describe('mergeJobs', () => {
     assert.equal(job3.name, 'base_only_job');
   });
 
+  it('dry run writes no file and reports a preview, not a completed write', () => {
+    const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: '1' }] }) + '\n');
+
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, dryRun: true, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    // No output file was written.
+    assert.ok(!fs.existsSync(path.join(cronDir, 'jobs.json')), 'dry-run must not write jobs.json');
+    // The log line must not claim the file was written.
+    assert.ok(!lines.some((l) => l.includes('written to')), `no "written to" claim in:\n${lines.join('\n')}`);
+    // And it phrases the write as a preview.
+    assert.ok(lines.some((l) => l.includes('Would merge jobs to:')), `preview wording missing in:\n${lines.join('\n')}`);
+  });
+
   it('recovers cleanly when base jobs.json is missing or corrupted', () => {
     const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
