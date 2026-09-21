@@ -60,9 +60,15 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     assert.equal(result.config.length, 1);
     assert.equal(result.config[0].status, 'merged');
 
-    // Jobs and soul are benign no-ops (empty result lists, not errors).
-    assert.deepEqual(result.jobs, []);
-    assert.deepEqual(result.soul, []);
+    // Jobs and soul are benign no-ops: the profile is reported as
+    // `skipped` (its custom source is absent) instead of silently
+    // missing, and nothing is written or thrown.
+    assert.equal(result.jobs.length, 1);
+    assert.equal(result.jobs[0].status, 'skipped');
+    assert.equal(result.soul.length, 1);
+    assert.equal(result.soul[0].status, 'skipped');
+    assert.ok(!fs.existsSync(path.join(mainDir, 'cron', 'jobs.json')));
+    assert.ok(!fs.existsSync(path.join(mainDir, 'SOUL.md')));
   });
 
   it('succeeds when the profile has ONLY cron/jobs.custom.json (no config/soul custom)', () => {
@@ -88,11 +94,14 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     assert.equal(result.jobs[0].status, 'merged');
 
     // Config/soul custom sources absent: config reports a per-profile skipped
-    // entry (not a throw), soul is an empty no-op. No config output written.
-    assert.equal(result.soul.length, 0);
+    // entry (not a throw), soul now does the same — a visible no-op instead
+    // of a silent omission. No config/soul outputs written.
+    assert.equal(result.soul.length, 1);
+    assert.equal(result.soul[0].status, 'skipped');
     assert.equal(result.config.length, 1);
     assert.equal(result.config[0].status, 'skipped');
     assert.ok(!fs.existsSync(path.join(mainDir, 'config.yaml')));
+    assert.ok(!fs.existsSync(path.join(mainDir, 'SOUL.md')));
   });
 
   it('completes without throwing when profiles dir has NO profile subdirs (config/jobs/soul all empty no-ops)', () => {
@@ -116,8 +125,12 @@ describe('syncAll / mergeAll aggregate behavior', () => {
 
     const out = mergeAll({ rootDir: tmpDir, logger: () => {} });
     assert.equal(out.config.length, 1);
-    assert.deepEqual(out.jobs, []);
-    assert.deepEqual(out.soul, []);
+    // The profile lacks cron/SOUL custom sources: both concerns now report
+    // a visible `skipped` entry instead of silently omitting the profile.
+    assert.equal(out.jobs.length, 1);
+    assert.equal(out.jobs[0].status, 'skipped');
+    assert.equal(out.soul.length, 1);
+    assert.equal(out.soul[0].status, 'skipped');
   });
 
   it('preserves per-profile skipped/error entries and dryRun in the aggregate', () => {
@@ -298,6 +311,87 @@ describe('standalone merge sub-commands still surface "no custom found"', () => 
     // triggered (existing behavior) — a skipped entry is returned instead.
     const res = mergeConfig({ rootDir: tmpDir, profiles: ['worker'], logger: () => {} });
     assert.equal(res.length, 1);
+    assert.equal(res[0].status, 'skipped');
+  });
+
+  it('standalone mergeJobs exits cleanly (no throw) for an explicit -p target without a cron source', () => {
+    // Regression target: `mergeJobs({ profiles: ['nonexistent'] })` used to
+    // throw the top-level "no profiles with cron/jobs.custom.json found"
+    // error even though the user explicitly named a profile. It must behave
+    // exactly like the mergeConfig case above: a per-profile `skipped`
+    // entry and a clean return, so the CLI can exit 0.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+    const res = mergeJobs({ rootDir: tmpDir, profiles: ['nonexistent'], logger: () => {} });
+    assert.equal(res.length, 1);
+    assert.equal(res[0].profile, 'nonexistent');
+    assert.equal(res[0].status, 'skipped');
+    assert.match(res[0].error ?? '', /cron\/jobs\.custom\.json not found/);
+    // Nothing was written for the targeted profile.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'nonexistent', 'cron', 'jobs.json')));
+  });
+
+  it('standalone mergeSoul exits cleanly (no throw) for an explicit -p target without a SOUL source', () => {
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+
+    // Same regression as mergeJobs above, mirrored for the SOUL concern.
+    const res = mergeSoul({ rootDir: tmpDir, profiles: ['nonexistent'], logger: () => {} });
+    assert.equal(res.length, 1);
+    assert.equal(res[0].profile, 'nonexistent');
+    assert.equal(res[0].status, 'skipped');
+    assert.match(res[0].error ?? '', /SOUL\.custom\.md not found/);
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'nonexistent', 'SOUL.md')));
+  });
+
+  it('standalone mergeJobs with NO profiles and an empty workspace still throws the loud error', () => {
+    // Regression guard: the fix must NOT weaken the no-target case. With no
+    // -p flag on a workspace without any profile dirs, the standalone
+    // command still fails loudly ("nothing to merge").
+    // Note: no common dir needed for jobs — mergeJobs has no common-source
+    // precondition.
+    const res = (() => {
+      try {
+        return { threw: false, res: mergeJobs({ rootDir: tmpDir, logger: () => {} }) };
+      } catch (err) {
+        return { threw: true, err: err instanceof Error ? err.message : String(err) };
+      }
+    })();
+    assert.equal(res.threw, true, 'expected the no-target standalone mergeJobs to throw');
+    assert.match(res.err, /no profiles with cron\/jobs\.custom\.json found/);
+  });
+
+  it('standalone mergeSoul with NO profiles and an empty workspace still throws the loud error', () => {
+    // Same guard for soul: mergeSoul requires the common SOUL.md to even
+    // start, so provide it — the throw under test is the per-profile
+    // "nothing to merge" guard, not the common-source precondition.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common\n');
+
+    const res = (() => {
+      try {
+        return { threw: false, res: mergeSoul({ rootDir: tmpDir, logger: () => {} }) };
+      } catch (err) {
+        return { threw: true, err: err instanceof Error ? err.message : String(err) };
+      }
+    })();
+    assert.equal(res.threw, true, 'expected the no-target standalone mergeSoul to throw');
+    assert.match(res.err, /no profiles with SOUL\.custom\.md found/);
+  });
+
+  it('standalone mergeJobs with an empty explicit profiles array is a clean no-op (mergeConfig semantics)', () => {
+    // Mirrors mergeConfig's `!options.profiles` truthiness exactly: a
+    // provided (but empty) `profiles` array is treated as EXPLICITLY
+    // provided, so the run is a clean no-op instead of the top-level
+    // "no profiles found" throw. The loop falls back to auto-discovered
+    // profiles (same as mergeConfig), which here is just `worker` —
+    // reported as a `skipped` entry, not a throw.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+    const res = mergeJobs({ rootDir: tmpDir, profiles: [], logger: () => {} });
+    assert.equal(res.length, 1);
+    assert.equal(res[0].profile, 'worker');
     assert.equal(res[0].status, 'skipped');
   });
 });

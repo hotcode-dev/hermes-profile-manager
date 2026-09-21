@@ -9,9 +9,15 @@ export interface MergeSoulOptions {
   dryRun?: boolean;
   /**
    * When true, a run where no profile has a SOUL.custom.md source is treated
-   * as a successful no-op (returns an empty result list) instead of throwing.
-   * Used by the aggregate sync path; standalone CLI calls keep the default
-   * (false) and still surface the "nothing to merge" error.
+   * as a successful no-op (returns the per-profile skipped entries) instead
+   * of throwing. Used by the aggregate sync path; standalone CLI calls keep
+   * the default (false) and still surface the "nothing to merge" error.
+   *
+   * The throw is additionally exempted when `profiles` is EXPLICITLY
+   * provided: an explicitly targeted profile that simply has no
+   * SOUL.custom.md source is a per-profile `skipped` no-op (exit 0),
+   * matching the `mergeConfig` contract — NOT a top-level "no profiles found"
+   * failure.
    */
   allowEmpty?: boolean;
 }
@@ -54,6 +60,17 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
     const outputSoulPath = path.join(profileDir, 'SOUL.md');
 
     if (!fs.existsSync(customSoulPath)) {
+      // Record a per-profile skipped entry instead of silently skipping,
+      // mirroring mergeConfig: an explicitly targeted profile (or any
+      // profile in the allowEmpty aggregate path) whose custom source is
+      // missing is a visible no-op, not an invisible one. `foundAnyCustom`
+      // stays driven only by real custom sources below.
+      results.push({
+        profile,
+        outputPath: outputSoulPath,
+        status: 'skipped',
+        error: `Profile SOUL.custom.md not found: ${customSoulPath}`
+      });
       continue;
     }
 
@@ -91,7 +108,14 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
     }
   }
 
-  if (!foundAnyCustom) {
+  // Only throw the aggregate "nothing to merge" error when no profiles were
+  // explicitly targeted. With an explicit `profiles` list the run is a
+  // per-profile no-op (skipped entries above), exactly like mergeConfig:
+  // the user named a profile, so "no profiles found under <dir>" would be
+  // both wrong and misleading. (Note: this mirrors mergeConfig's
+  // `!options.profiles` truthiness exactly — a provided-but-empty array is
+  // treated as explicitly provided and is likewise a clean no-op.)
+  if (!foundAnyCustom && !options.profiles) {
     if (options.allowEmpty) {
       return results;
     }
