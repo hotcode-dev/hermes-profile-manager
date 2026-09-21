@@ -937,9 +937,23 @@ describe('CLI --dry-run reports results without writing to disk', () => {
 
     const r = runCli(['--dry-run', 'init', targetDir], { cwd: tmpDir });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    // The banner is a preview under --dry-run: it must NOT assert the
+    // workspace was initialized or the profile was created.
     assert.ok(
-      r.stdout.includes('✓ Successfully initialized Hermes profiles in'),
-      `success banner missing:\n${r.stdout}`
+      r.stdout.includes('✓ Would initialize Hermes profiles in'),
+      `dry-run preview banner missing:\n${r.stdout}`
+    );
+    assert.ok(
+      !r.stdout.includes('Successfully initialized Hermes profiles in'),
+      `dry-run banner must not claim the workspace was initialized:\n${r.stdout}`
+    );
+    assert.ok(
+      r.stdout.includes('Profile to create:'),
+      `dry-run banner must preview the profile as "to create":\n${r.stdout}`
+    );
+    assert.ok(
+      !r.stdout.includes('Profile created:'),
+      `dry-run banner must not claim the profile was created:\n${r.stdout}`
     );
     // The banner phrases the count as a preview (nothing was written).
     assert.ok(

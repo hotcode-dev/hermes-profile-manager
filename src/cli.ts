@@ -255,8 +255,17 @@ program
     }
 
     if (!program.opts().quiet) {
-      console.log(`\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`);
-      console.log(`  - Profile created: ${result.profileName}`);
+      // Under --dry-run nothing was written, so the banner must be phrased
+      // as a preview ("Would initialize ...") — never assert the workspace
+      // was "Successfully initialized" or the profile "created".
+      console.log(
+        dryRun
+          ? `\n\u2713 Would initialize Hermes profiles in ${result.targetDir}`
+          : `\n\u2713 Successfully initialized Hermes profiles in ${result.targetDir}`
+      );
+      console.log(
+        dryRun ? `  - Profile to create: ${result.profileName}` : `  - Profile created: ${result.profileName}`
+      );
       // Under --dry-run no files were written: createdFiles holds the
       // would-be creates, so phrase the count as a preview to stay honest.
       console.log(
