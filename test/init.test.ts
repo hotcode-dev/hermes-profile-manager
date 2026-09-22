@@ -15,6 +15,13 @@ describe('initWorkspace', () => {
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Also clean the shared escape target the path-traversal regression
+    // test asserts on: path.dirname(tmpDir) is the OS temp dir, so
+    // <tmpdir>/pwned is a SHARED path across runs. A stale artifact there
+    // (e.g. leftover from a run before the validation fix shipped) would
+    // make the !existsSync assertion fail forever. Hermetic: remove it
+    // here, not only in the test itself.
+    fs.rmSync(path.join(path.dirname(tmpDir), 'pwned'), { recursive: true, force: true });
   });
 
   it('scaffolds a complete profile structure with initial sync', () => {
@@ -255,8 +262,13 @@ describe('initWorkspace', () => {
     // profile dir OUTSIDE the workspace, so the per-profile scaffolding
     // (config.custom.yaml, SOUL.custom.md, cron/jobs.custom.json) landed at
     // <ws>/../pwned/ instead of <ws>/profiles/pwned/.
-    const siblingDir = path.join(path.dirname(tmpDir), path.basename(tmpDir) + '-pwned');
-    assert.ok(!fs.existsSync(siblingDir), 'precondition: sibling dir must not exist yet');
+    //
+    // The escape target that path.join(tmpDir, 'profiles', '../../pwned')
+    // actually resolves to is <shared-tmpdir>/pwned — the SAME path for
+    // every run, because tmpDir lives under os.tmpdir(). Clean it up in
+    // afterEach (see above) so this precondition holds hermetically.
+    const escapeDir = path.join(path.dirname(tmpDir), 'pwned');
+    assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
 
     assert.throws(
       () =>
@@ -270,13 +282,9 @@ describe('initWorkspace', () => {
       /Invalid profile name/
     );
 
-    // Nothing escaped the workspace: no sibling dir, no <ws>/pwned/, and
-    // no profiles/ tree at all (validation throws before any side effect).
-    assert.ok(!fs.existsSync(siblingDir), 'no files may be written outside targetDir');
-    assert.ok(
-      !fs.existsSync(path.join(path.dirname(tmpDir), 'pwned')),
-      'the ../pwned sibling must not have been created'
-    );
+    // Nothing escaped the workspace: no <ws>/pwned/ sibling, and no
+    // profiles/ tree at all (validation throws before any side effect).
+    assert.ok(!fs.existsSync(escapeDir), 'the ../pwned sibling must not have been created');
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'nothing may be written to targetDir');
   });
 

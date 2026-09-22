@@ -474,6 +474,13 @@ describe('CLI init exit status reflects initial-sync failures', () => {
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Also clean the shared escape target the path-traversal regression
+    // test asserts on: path.dirname(tmpDir) is the OS temp dir, so
+    // <tmpdir>/pwned is a SHARED path across runs. A stale artifact there
+    // (e.g. leftover from a run before the validation fix shipped) would
+    // make the !existsSync assertion fail forever. Hermetic: remove it
+    // here, not only in the test itself.
+    fs.rmSync(path.join(path.dirname(tmpDir), 'pwned'), { recursive: true, force: true });
   });
 
   /** Shared failure assertions: non-zero exit, no banner, readable stderr. */
@@ -572,8 +579,12 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     // `init` to the global variadic `profiles` option), so `init -p X` never
     // reaches the profile-name code path. The long `--profile` form is the
     // documented CLI spelling for this option.
-    const siblingDir = path.join(path.dirname(tmpDir), path.basename(tmpDir) + '-pwned');
-    assert.ok(!fs.existsSync(siblingDir), 'precondition: sibling dir must not exist yet');
+    // The escape target that path.join(tmpDir, 'profiles', '../../pwned')
+    // actually resolves to is <shared-tmpdir>/pwned — the SAME path for
+    // every run, because tmpDir lives under os.tmpdir(). Clean it up in
+    // afterEach (see above) so this precondition holds hermetically.
+    const escapeDir = path.join(path.dirname(tmpDir), 'pwned');
+    assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
 
     const r = runCli(['init', '--profile', '../../pwned'], { cwd: tmpDir });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
@@ -586,12 +597,8 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     assert.match(r.stderr, /Failed: invalid profile name/);
     // ...and NOTHING was written outside the workspace.
     assert.ok(
-      !fs.existsSync(siblingDir),
-      `no files may escape the workspace (found: ${siblingDir})`
-    );
-    assert.ok(
-      !fs.existsSync(path.join(path.dirname(tmpDir), 'pwned')),
-      'the ../pwned sibling must not have been created'
+      !fs.existsSync(escapeDir),
+      `no files may escape the workspace (found: ${escapeDir})`
     );
     assert.ok(
       !fs.existsSync(path.join(tmpDir, 'profiles')),
