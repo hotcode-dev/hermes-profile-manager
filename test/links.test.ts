@@ -8,15 +8,24 @@ import { linkSkills, linkPlugins, linkHermes } from '../src/core/links.js';
 describe('link operations', () => {
   let tmpDir: string;
   let hermesDir: string;
+  // Shared escape target the path-traversal regression tests assert on:
+  // path.dirname(tmpDir) is the OS temp dir, so <tmpdir>/pwned is SHARED
+  // across runs. A stale artifact there would make the "wrote nothing
+  // outside the workspace" assertion fail forever.
+  const pwnedDir = () => path.join(path.dirname(tmpDir), 'pwned');
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-links-'));
     hermesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-hermes-'));
+    // Hermetic precondition: no stale escape artifact from an earlier run.
+    fs.rmSync(pwnedDir(), { recursive: true, force: true });
   });
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     fs.rmSync(hermesDir, { recursive: true, force: true });
+    // Clean the shared escape target (see pwnedDir above).
+    fs.rmSync(pwnedDir(), { recursive: true, force: true });
   });
 
   it('creates relative symlinks for common skills', () => {
@@ -201,5 +210,67 @@ describe('link operations', () => {
       assert.ok(!lines.some((l) => l.includes('Linked ')), `no "Linked" claim in:\n${lines.join('\n')}`);
       assert.ok(lines.every((l) => l.startsWith('Would link ')), `preview wording in:\n${lines.join('\n')}`);
     }
+  });
+
+  it('linkSkills rejects a path-traversal profile name BEFORE creating any symlink', () => {
+    // SECURITY REGRESSION (path traversal via user-controlled -p/--profiles):
+    // path.join(profilesDir, '../../pwned', 'skills', <skill>) resolves
+    // OUTSIDE the workspace (to <tmpdir>/pwned/skills/...). Without the fix,
+    // a pre-seeded common skill source would make linkSkills create symlinks
+    // at the attacker-chosen location. The name must be rejected first.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), { recursive: true });
+    const escapeDir = pwnedDir();
+    assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
+
+    assert.throws(
+      () => linkSkills({ rootDir: tmpDir, profiles: ['../../pwned'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
+        return true;
+      }
+    );
+    // No symlink (and no directory) may have been created outside the
+    // workspace, and the workspace itself must be untouched.
+    assert.ok(!fs.existsSync(escapeDir), `nothing may be created outside the workspace (found: ${escapeDir})`);
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'pwned')), 'no in-workspace escape either');
+  });
+
+  it('linkPlugins rejects a path-traversal profile name BEFORE creating any symlink', () => {
+    // SECURITY REGRESSION (same vector, plugin concern): without the fix,
+    // linkPlugins would create symlinks under <tmpdir>/pwned/plugins/ and
+    // in hermesDir. The name must be rejected before any side effect.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    const escapeDir = pwnedDir();
+    assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
+
+    assert.throws(
+      () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['../../pwned'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
+        return true;
+      }
+    );
+    assert.ok(!fs.existsSync(escapeDir), `nothing may be created outside the workspace (found: ${escapeDir})`);
+    // The hermes-side plugin dir is also a side effect the validation must
+    // precede.
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'no hermes-side plugin links on rejection');
+  });
+
+  it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
+    for (const name of ['..', './x', 'a/b']) {
+      assert.throws(
+        () => linkSkills({ rootDir: tmpDir, profiles: [name], logger: () => {} }),
+        /Invalid profile name/,
+        `linkSkills expected "${name}" to be rejected`
+      );
+      assert.throws(
+        () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: [name], logger: () => {} }),
+        /Invalid profile name/,
+        `linkPlugins expected "${name}" to be rejected`
+      );
+    }
+    assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been created outside the workspace');
   });
 });

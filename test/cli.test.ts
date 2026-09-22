@@ -1128,3 +1128,85 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     assert.ok(fs.existsSync(path.join(agentDir, 'cron', 'jobs.json')), 'real initial sync must write jobs.json');
   });
 });
+
+describe('CLI --profiles with a path-traversal name: merge/link reject before any side effect', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-traversal-'));
+    // Hermetic precondition: no stale escape artifact from an earlier run.
+    // path.dirname(tmpDir) is the OS temp dir, so <tmpdir>/pwned is SHARED
+    // across runs (same lesson as the init traversal test above).
+    fs.rmSync(path.join(path.dirname(tmpDir), 'pwned'), { recursive: true, force: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Clean the shared escape target so the precondition holds hermetically.
+    fs.rmSync(path.join(path.dirname(tmpDir), 'pwned'), { recursive: true, force: true });
+  });
+
+  /** Shared assertions: non-zero exit, clean error, nothing escaped. */
+  function assertRejectedRun(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string,
+    failedRegex: RegExp
+  ): void {
+    const escapeDir = path.join(path.dirname(tmpDir), 'pwned');
+    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
+    assert.match(r.stderr, failedRegex);
+    // NOTHING was written/linked outside the workspace.
+    assert.ok(!fs.existsSync(escapeDir), `no files may escape the workspace (found: ${escapeDir})`);
+  }
+
+  it('merge config --profiles ../../pwned exits 1 with a clean error and writes nothing outside the workspace', () => {
+    // SECURITY REGRESSION: the global -p/--profiles option feeds
+    // user-controlled names into path.join(profilesDir, ...). Without the
+    // validation fix, mergeConfig would read a pre-seeded
+    // <tmpdir>/pwned/config.custom.yaml and WRITE the merged
+    // <tmpdir>/pwned/config.yaml outside the workspace.
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['merge', 'config', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'merge config', /Failed: the merge run failed/);
+  });
+
+  it('merge jobs --profiles ../../pwned exits 1 with a clean error and writes nothing outside the workspace', () => {
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['merge', 'jobs', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'merge jobs', /Failed: the merge run failed/);
+  });
+
+  it('merge soul --profiles ../../pwned exits 1 with a clean error and writes nothing outside the workspace', () => {
+    scaffoldWorkspace(tmpDir);
+    const r = runCli(['merge', 'soul', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'merge soul', /Failed: the merge run failed/);
+  });
+
+  it('link --profiles ../../pwned exits 1 with a clean error and creates no symlinks outside the workspace', () => {
+    // SECURITY REGRESSION: without the fix, link would create symlinks under
+    // <tmpdir>/pwned/skills and <tmpdir>/pwned/plugins (and in the fake
+    // HERMES_HOME) from the attacker-chosen location.
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+    const r = runCli(['link', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'link', /Failed: \d+ link step(?:s)? failed/);
+  });
+
+  it('link skills --profiles ../../pwned exits 1 with a clean error and creates no symlinks', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
+    const r = runCli(['link', 'skills', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'link skills', /Failed: 1 link step failed/);
+  });
+
+  it('link plugins --profiles ../../pwned exits 1 with a clean error and creates no symlinks', () => {
+    scaffoldWorkspace(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+    const r = runCli(['link', 'plugins', '--profiles', '../../pwned'], { cwd: tmpDir });
+    assertRejectedRun(r, 'link plugins', /Failed: 1 link step failed/);
+  });
+});

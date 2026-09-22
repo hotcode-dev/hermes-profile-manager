@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
+import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface MergeSoulOptions {
   rootDir?: string;
@@ -44,6 +45,17 @@ export interface MergeSoulResult {
 export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
+
+  // User-controlled profile names (global -p/--profiles option) are a
+  // path-traversal vector: path.join(profilesDir, '../../x') resolves
+  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
+  // any filesystem access or write, mirroring initWorkspace's "validated
+  // before path construction" contract. (Discovered names come from
+  // readdirSync, not user input.)
+  for (const profile of options.profiles ?? []) {
+    validateProfileName(profile);
+  }
+
   const commonSoulPath = path.join(rootDir, 'profiles', 'common', 'SOUL.md');
 
   if (!fs.existsSync(commonSoulPath)) {
@@ -71,6 +83,9 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
 
   for (const profile of targetProfiles) {
     const profileDir = path.join(profilesDir, profile);
+    // Defense in depth: the profile dir must stay strictly under
+    // profilesDir (closes traversal even for non-explicit names).
+    assertProfilePathInWorkspace(profilesDir, profileDir);
     const customSoulPath = path.join(profileDir, 'SOUL.custom.md');
     const outputSoulPath = path.join(profileDir, 'SOUL.md');
 

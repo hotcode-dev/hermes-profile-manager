@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
+import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface MergeJobsOptions {
   rootDir?: string;
@@ -120,6 +121,17 @@ export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocumen
 export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
+
+  // User-controlled profile names (global -p/--profiles option) are a
+  // path-traversal vector: path.join(profilesDir, '../../x') resolves
+  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
+  // any filesystem access or write, mirroring initWorkspace's "validated
+  // before path construction" contract. (Discovered names come from
+  // readdirSync, not user input.)
+  for (const profile of options.profiles ?? []) {
+    validateProfileName(profile);
+  }
+
   const profilesDir = path.join(rootDir, 'profiles');
   const availableProfiles = getProfileNames(profilesDir);
   const targetProfiles = options.profiles && options.profiles.length > 0
@@ -140,6 +152,9 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
 
   for (const profile of targetProfiles) {
     const profileDir = path.join(profilesDir, profile);
+    // Defense in depth: the profile dir must stay strictly under
+    // profilesDir (closes traversal even for non-explicit names).
+    assertProfilePathInWorkspace(profilesDir, profileDir);
     const cronDir = path.join(profileDir, 'cron');
     const customJobsPath = path.join(cronDir, 'jobs.custom.json');
     const outputJobsPath = path.join(cronDir, 'jobs.json');
