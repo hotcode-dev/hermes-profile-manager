@@ -65,15 +65,49 @@ const DEFAULT_CUSTOM_JOBS = JSON.stringify({
  */
 export function initWorkspace(options: InitOptions = {}): InitResult {
   const targetDir = path.resolve(options.targetDir || process.cwd());
-  const profileName = (options.profileName || 'main').trim();
+  // An explicit `profileName` (even an empty string) is always honored and
+  // validated; only an absent (undefined/null) name falls back to 'main'.
+  // (Previously `|| 'main'` silently swallowed an empty-string name.)
+  const profileName = (options.profileName ?? 'main').trim();
   const log = options.logger || console.log;
   const force = Boolean(options.force);
   const runSync = options.runSync !== false;
   const dryRun = Boolean(options.dryRun);
 
+  // Validate profileName before it is used in any path construction.
+  // A name containing path separators (`/`, `\`) or `.`/`..` segments would
+  // cause path.join to resolve the profile dir OUTSIDE of profilesDir,
+  // letting scaffolding files be written outside the target workspace.
+  // The allowlist `^[a-zA-Z0-9._-]+$` plus the explicit `.`/`..` guard
+  // rejects every known traversal vector.
+  if (
+    !profileName ||
+    profileName === '.' ||
+    profileName === '..' ||
+    profileName.includes('/') ||
+    profileName.includes('\\') ||
+    !/^[a-zA-Z0-9._-]+$/.test(profileName)
+  ) {
+    throw new Error(
+      `Invalid profile name: "${profileName}" — must be a single path-safe segment ` +
+      `(letters, digits, dots, hyphens, underscores)`
+    );
+  }
+
   const profilesDir = path.join(targetDir, 'profiles');
   const commonDir = path.join(profilesDir, 'common');
   const profileDir = path.join(profilesDir, profileName);
+
+  // Defense in depth: assert the resolved profile directory stays under
+  // profilesDir. The allowlist above already guarantees this, but this
+  // catches any future path-construction changes that might bypass it.
+  const resolvedProfilesDir = path.resolve(profilesDir);
+  const resolvedProfileDir = path.resolve(profileDir);
+  if (!resolvedProfileDir.startsWith(resolvedProfilesDir + path.sep)) {
+    throw new Error(
+      `Profile directory "${resolvedProfileDir}" escapes the workspace boundary "${resolvedProfilesDir}"`
+    );
+  }
 
   const createdFiles: string[] = [];
   const skippedFiles: string[] = [];

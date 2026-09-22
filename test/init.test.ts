@@ -249,6 +249,116 @@ describe('initWorkspace', () => {
     // No sync ran (a real sync on this workspace would write compiled outputs).
     assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
   });
+
+  it('rejects a path-traversal profile name ("../../pwned") and writes NO files outside targetDir', () => {
+    // Regression: a `..`-laden name used to make path.join resolve the
+    // profile dir OUTSIDE the workspace, so the per-profile scaffolding
+    // (config.custom.yaml, SOUL.custom.md, cron/jobs.custom.json) landed at
+    // <ws>/../pwned/ instead of <ws>/profiles/pwned/.
+    const siblingDir = path.join(path.dirname(tmpDir), path.basename(tmpDir) + '-pwned');
+    assert.ok(!fs.existsSync(siblingDir), 'precondition: sibling dir must not exist yet');
+
+    assert.throws(
+      () =>
+        initWorkspace({
+          targetDir: tmpDir,
+          profileName: '../../pwned',
+          force: true,
+          runSync: false,
+          logger: () => {}
+        }),
+      /Invalid profile name/
+    );
+
+    // Nothing escaped the workspace: no sibling dir, no <ws>/pwned/, and
+    // no profiles/ tree at all (validation throws before any side effect).
+    assert.ok(!fs.existsSync(siblingDir), 'no files may be written outside targetDir');
+    assert.ok(
+      !fs.existsSync(path.join(path.dirname(tmpDir), 'pwned')),
+      'the ../pwned sibling must not have been created'
+    );
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'nothing may be written to targetDir');
+  });
+
+  it('rejects every non-path-safe profile name variant', () => {
+    const badNames = [
+      'a/b',        // forward slash separator
+      'a\\b',       // backslash separator
+      '..',         // parent traversal
+      '.',          // self
+      'main/../other', // embedded traversal segment
+      '../../etc',  // deep traversal
+      '/abs/path',  // absolute path (leading slash)
+      'C:\\abs',    // Windows absolute path
+      'a//b',       // double slash
+      'name name',  // space is not in the allowlist
+      'naüme',      // non-ASCII outside the allowlist
+      'a.b/c'       // dot + slash mix
+    ];
+    for (const name of badNames) {
+      assert.throws(
+        () =>
+          initWorkspace({
+            targetDir: tmpDir,
+            profileName: name,
+            runSync: false,
+            logger: () => {}
+          }),
+        /Invalid profile name/,
+        `expected profileName "${name}" to be rejected`
+      );
+      // The throw happens before any side effect: no profiles/ tree.
+      assert.ok(
+        !fs.existsSync(path.join(tmpDir, 'profiles')),
+        `no side effects expected after rejecting "${name}"`
+      );
+    }
+  });
+
+  it('rejects an empty or whitespace-only profile name', () => {
+    for (const name of ['', '   ', '\t\n']) {
+      assert.throws(
+        () =>
+          initWorkspace({
+            targetDir: tmpDir,
+            profileName: name,
+            runSync: false,
+            logger: () => {}
+          }),
+        /Invalid profile name/,
+        `expected empty/whitespace profileName ${JSON.stringify(name)} to be rejected`
+      );
+      assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
+    }
+  });
+
+  it('still scaffolds a valid profile name with dots, dashes, and underscores (regression guard)', () => {
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'agent-1',
+      runSync: false,
+      logger: () => {}
+    });
+    assert.equal(result.profileName, 'agent-1');
+    assert.equal(result.createdFiles.length, 5);
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, 'profiles', 'agent-1', 'config.custom.yaml'))
+    );
+
+    // Names with dots and underscores (legal allowlist members) also pass.
+    for (const name of ['agent_2', 'agent.3']) {
+      const r = initWorkspace({
+        targetDir: tmpDir,
+        profileName: name,
+        runSync: false,
+        logger: () => {}
+      });
+      assert.equal(r.profileName, name);
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, 'profiles', name, 'config.custom.yaml'))
+      );
+    }
+  });
 });
 
 /** Returns the relative paths of every file and directory under dir. */
