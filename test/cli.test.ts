@@ -231,6 +231,34 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
   });
 
+  it('merge config on a DISCOVERED invalid source reports the specific error, not the generic top-level message', () => {
+    // REGRESSION (CLI-level guard for the mergeConfig divergence): a
+    // DISCOVERED profile (no -p) whose config.custom.yaml EXISTS but is
+    // INVALID used to make mergeConfig throw the generic top-level
+    // "No profiles with valid config.custom.yaml could be merged" error,
+    // which `finishMerge`'s try/catch printed as a single one-liner and
+    // HID the specific per-profile diagnostic. Now the per-profile
+    // `status: 'error'` entry flows through collectMergeErrors/finishWithErrors
+    // exactly like mergeJobs/mergeSoul: exit 1, specific diagnostic on
+    // stderr, and NO generic "nothing to merge" top-level message.
+    scaffoldWorkspace(tmpDir);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    // A bare scalar is a valid YAML document but not an object.
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `success banner must not print:\n${r.stdout}`);
+    // The SPECIFIC per-profile diagnostic is surfaced...
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    // ...and the GENERIC top-level "nothing to merge" message is NOT emitted.
+    assert.ok(
+      !r.stderr.includes('No profiles with valid config.custom.yaml could be merged'),
+      `generic top-level message must not be reported:\n${r.stderr}`
+    );
+  });
+
   it('config-merge alias exits 1 when a profile config merge fails', () => {
     scaffoldFailingWorkspace();
     const r = runCli(['config-merge'], { cwd: tmpDir });

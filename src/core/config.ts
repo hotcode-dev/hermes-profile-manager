@@ -12,10 +12,16 @@ export interface MergeConfigOptions {
   dryRun?: boolean;
   /**
    * When true, a run with nothing to merge is a successful no-op (returns
-   * the per-profile skipped/error results, or `[]` for an empty target list)
+   * the per-profile skipped entries, or `[]` for an empty target list)
    * instead of throwing. Used by the aggregate sync path; standalone CLI
    * calls keep the default (false) and still surface the "nothing to merge"
    * error.
+   *
+   * The "nothing to merge" check is source-existence based (mirrors
+   * mergeJobs/mergeSoul): it triggers only when no discovered profile has a
+   * config.custom.yaml AT ALL. A discovered profile whose source exists but
+   * is invalid carries its failure in a per-profile `status: 'error'` entry
+   * and never triggers this throw — that entry is the real failure carrier.
    *
    * Two "no targets" situations, both governed by this flag:
    * - An EMPTY target list (no profile subdirs found, or an explicit
@@ -79,6 +85,7 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
   }
 
   const results: MergeConfigResult[] = [];
+  let foundAnyCustom = false;
 
   for (const profile of targetProfiles) {
     const profileDir = path.join(profilesDir, profile);
@@ -89,6 +96,11 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
     const outputPath = path.join(profileDir, 'config.yaml');
 
     if (!fs.existsSync(customConfigPath)) {
+      // Record a per-profile skipped entry instead of silently skipping: an
+      // explicitly targeted profile (or any profile in the allowEmpty
+      // aggregate path) whose custom source is missing is a visible no-op,
+      // not an invisible one. `foundAnyCustom` stays driven only by real
+      // custom sources below, exactly as mergeJobs/mergeSoul do.
       results.push({
         profile,
         outputPath,
@@ -97,6 +109,8 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
       });
       continue;
     }
+
+    foundAnyCustom = true;
 
     try {
       const customRaw = fs.readFileSync(customConfigPath, 'utf8');
@@ -138,8 +152,18 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
     }
   }
 
-  const mergedCount = results.filter((r) => r.status === 'merged').length;
-  if (mergedCount === 0 && !options.profiles) {
+  // Reached only with a non-empty target list (an empty one is caught by the
+  // `No profiles found under` guard above). Throw the aggregate "nothing to
+  // merge" error only when NO custom source EXISTS anywhere in the
+  // DISCOVERED set and no profiles were EXPLICITLY targeted — driven by
+  // source existence, NOT by merge success: a discovered profile whose
+  // config.custom.yaml exists but is invalid carries its failure in the
+  // per-profile `status: 'error'` entry (the real failure carrier), exactly
+  // as mergeJobs/mergeSoul gate on their `foundAnyCustom` flag. With a
+  // non-empty explicit `profiles` list each named profile already got a
+  // per-profile `skipped`/`error` entry above, so a top-level failure would
+  // be wrong and misleading.
+  if (!foundAnyCustom && !options.profiles) {
     if (options.allowEmpty) {
       return results;
     }
