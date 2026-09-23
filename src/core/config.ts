@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { deepMerge, isPlainObject } from '../utils/deep-merge.js';
 import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
+import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface MergeConfigOptions {
   rootDir?: string;
@@ -44,6 +45,17 @@ export interface MergeConfigResult {
 export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
+
+  // User-controlled profile names (global -p/--profiles option) are a
+  // path-traversal vector: path.join(profilesDir, '../../x') resolves
+  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
+  // any filesystem access or write, mirroring initWorkspace's "validated
+  // before path construction" contract. (Discovered names come from
+  // readdirSync, not user input.)
+  for (const profile of options.profiles ?? []) {
+    validateProfileName(profile);
+  }
+
   const commonConfigPath = path.join(rootDir, 'profiles', 'common', 'config.yaml');
 
   if (!fs.existsSync(commonConfigPath)) {
@@ -70,6 +82,9 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
 
   for (const profile of targetProfiles) {
     const profileDir = path.join(profilesDir, profile);
+    // Defense in depth: the profile dir must stay strictly under
+    // profilesDir (closes traversal even for non-explicit names).
+    assertProfilePathInWorkspace(profilesDir, profileDir);
     const customConfigPath = path.join(profileDir, 'config.custom.yaml');
     const outputPath = path.join(profileDir, 'config.yaml');
 

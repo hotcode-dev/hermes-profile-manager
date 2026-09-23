@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { syncAll, SyncAllResult } from './sync.js';
+import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface InitOptions {
   targetDir?: string;
@@ -78,21 +79,9 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   // A name containing path separators (`/`, `\`) or `.`/`..` segments would
   // cause path.join to resolve the profile dir OUTSIDE of profilesDir,
   // letting scaffolding files be written outside the target workspace.
-  // The allowlist `^[a-zA-Z0-9._-]+$` plus the explicit `.`/`..` guard
-  // rejects every known traversal vector.
-  if (
-    !profileName ||
-    profileName === '.' ||
-    profileName === '..' ||
-    profileName.includes('/') ||
-    profileName.includes('\\') ||
-    !/^[a-zA-Z0-9._-]+$/.test(profileName)
-  ) {
-    throw new Error(
-      `Invalid profile name: "${profileName}" — must be a single path-safe segment ` +
-      `(letters, digits, dots, hyphens, underscores)`
-    );
-  }
+  // The shared allowlist `^[a-zA-Z0-9._-]+$` plus the explicit `.`/`..`
+  // guard rejects every known traversal vector.
+  validateProfileName(profileName);
 
   const profilesDir = path.join(targetDir, 'profiles');
   const commonDir = path.join(profilesDir, 'common');
@@ -101,13 +90,7 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   // Defense in depth: assert the resolved profile directory stays under
   // profilesDir. The allowlist above already guarantees this, but this
   // catches any future path-construction changes that might bypass it.
-  const resolvedProfilesDir = path.resolve(profilesDir);
-  const resolvedProfileDir = path.resolve(profileDir);
-  if (!resolvedProfileDir.startsWith(resolvedProfilesDir + path.sep)) {
-    throw new Error(
-      `Profile directory "${resolvedProfileDir}" escapes the workspace boundary "${resolvedProfilesDir}"`
-    );
-  }
+  assertProfilePathInWorkspace(profilesDir, profileDir);
 
   const createdFiles: string[] = [];
   const skippedFiles: string[] = [];

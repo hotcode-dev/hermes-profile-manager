@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ensureSymlinkSync, getProfileNames } from '../utils/fs-helpers.js';
+import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface LinkOptions {
   rootDir?: string;
@@ -26,6 +27,18 @@ export interface LinkResult {
 export function linkSkills(options: LinkOptions = {}): LinkResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
+
+  // User-controlled profile names (global -p/--profiles option) are a
+  // path-traversal vector: path.join(profilesDir, '../../x') resolves
+  // OUTSIDE the workspace, so symlinks would be created at attacker-chosen
+  // locations. Validate every explicitly targeted name BEFORE any symlink
+  // or filesystem side effect, mirroring initWorkspace's "validated before
+  // path construction" contract. (Discovered names come from readdirSync,
+  // not user input.)
+  for (const profile of options.profiles ?? []) {
+    validateProfileName(profile);
+  }
+
   const commonSkillsDir = path.join(rootDir, 'profiles', 'common', 'skills');
 
   if (!fs.existsSync(commonSkillsDir)) {
@@ -46,6 +59,9 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
 
   for (const profile of targetProfiles) {
     const profileSkillsDir = path.join(profilesDir, profile, 'skills');
+    // Defense in depth: the profile dir must stay strictly under
+    // profilesDir (closes traversal even for non-explicit names).
+    assertProfilePathInWorkspace(profilesDir, profileSkillsDir);
 
     for (const skillName of skillEntries) {
       const targetRel = `../../common/skills/${skillName}`;
@@ -83,6 +99,18 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
   const rootDir = options.rootDir || process.cwd();
   const hermesDir = options.hermesDir || process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
   const log = options.logger || console.log;
+
+  // User-controlled profile names (global -p/--profiles option) are a
+  // path-traversal vector: path.join(profilesDir, '../../x') resolves
+  // OUTSIDE the workspace, so symlinks would be created at attacker-chosen
+  // locations. Validate every explicitly targeted name BEFORE any symlink
+  // or filesystem side effect, mirroring initWorkspace's "validated before
+  // path construction" contract. (Discovered names come from readdirSync,
+  // not user input.)
+  for (const profile of options.profiles ?? []) {
+    validateProfileName(profile);
+  }
+
   const commonPluginsDir = path.join(rootDir, 'profiles', 'common', 'plugins');
 
   if (!fs.existsSync(commonPluginsDir)) {
@@ -104,6 +132,9 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
   // 1. Link to profiles
   for (const profile of targetProfiles) {
     const profilePluginsDir = path.join(profilesDir, profile, 'plugins');
+    // Defense in depth: the profile dir must stay strictly under
+    // profilesDir (closes traversal even for non-explicit names).
+    assertProfilePathInWorkspace(profilesDir, profilePluginsDir);
 
     for (const pluginName of pluginEntries) {
       const targetRel = `../../common/plugins/${pluginName}`;
