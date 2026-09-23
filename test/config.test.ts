@@ -154,4 +154,64 @@ timeout: 60
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
   });
+
+  it('returns a per-profile error entry (no top-level throw) when a DISCOVERED profile has an invalid config.custom.yaml', () => {
+    // REGRESSION (divergence from mergeJobs/mergeSoul): the trailing
+    // "nothing to merge" gate used to count only `status: 'merged'` entries,
+    // so a DISCOVERED profile (no `profiles` option) whose
+    // config.custom.yaml EXISTS but is INVALID (exists-but-invalid) made
+    // mergeConfig throw the generic top-level
+    // "No profiles with valid config.custom.yaml could be merged" error and
+    // mask the specific per-profile diagnostic. mergeJobs/mergeSoul gate on
+    // SOURCE EXISTENCE (foundAnyCustom), so the same failure shape returns a
+    // per-profile `status: 'error'` entry instead. mergeConfig must now
+    // return that per-profile error entry (the real failure carrier) rather
+    // than throw, so the CLI/collectMergeErrors path can report the specific
+    // diagnostic and exit 1 — identical to the jobs/soul behavior.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    // The ONLY profile, discovered (no `profiles` option), with an INVALID
+    // custom source: a bare scalar is a valid YAML document but not an
+    // object.
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+
+    // Must NOT throw the generic top-level "nothing to merge" error...
+    let results!: ReturnType<typeof mergeConfig>;
+    assert.doesNotThrow(
+      () => {
+        results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
+      },
+      /No profiles with valid config\.custom\.yaml/,
+      'an exists-but-invalid custom source must not trigger the generic top-level throw'
+    );
+    // ...it must return the specific per-profile error entry instead.
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'bad');
+    assert.equal(results[0].status, 'error');
+    assert.match(results[0].error ?? '', /not a valid YAML object/);
+    // Nothing was written for the failing profile.
+    assert.ok(!fs.existsSync(path.join(badDir, 'config.yaml')));
+  });
+
+  it('allowEmpty returns the per-profile error entry (no throw) for a discovered invalid source', () => {
+    // The aggregate sync path relies on `allowEmpty` to turn "nothing to
+    // merge" into a clean return; with the source-existence gate the
+    // exists-but-invalid case now flows through the same path — the
+    // per-profile `status: 'error'` entry is returned (not swallowed, not
+    // thrown) so the aggregate path can surface it.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+
+    const results = mergeConfig({ rootDir: tmpDir, allowEmpty: true, logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'error');
+    assert.match(results[0].error ?? '', /not a valid YAML object/);
+  });
 });
