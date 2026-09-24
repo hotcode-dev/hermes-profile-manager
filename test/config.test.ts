@@ -214,4 +214,56 @@ timeout: 60
     assert.equal(results[0].status, 'error');
     assert.match(results[0].error ?? '', /not a valid YAML object/);
   });
+
+  it('records a ONE-LINE, path-including error entry when a custom config FAILS TO PARSE', () => {
+    // REGRESSION (raw YAML parse error leak): a malformed
+    // config.custom.yaml used to surface the raw multi-line YAMLParseError
+    // (source snippet + caret, NO file name) as the per-profile `error`.
+    // The entry must now be a single line that names the file.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    const customPath = path.join(badDir, 'config.custom.yaml');
+    fs.writeFileSync(customPath, `model: [unclosed\n`);
+
+    const results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'bad');
+    assert.equal(results[0].status, 'error');
+    const err = results[0].error ?? '';
+    assert.match(err, /Custom config is not valid YAML/);
+    // The error must name the offending file ...
+    assert.ok(err.includes(customPath), `error must include the absolute path:\n${err}`);
+    // ... be a SINGLE line (the raw parse error spans 5+ lines) ...
+    assert.ok(!err.includes('\n'), `error must be one line:\n${err}`);
+    // ... and must not leak the raw source snippet or the caret line.
+    assert.ok(!err.includes('model: [unclosed'), `no raw source snippet:\n${err}`);
+    assert.ok(!/^\^$/m.test(err), `no raw caret line:\n${err}`);
+    assert.ok(!fs.existsSync(path.join(badDir, 'config.yaml')), 'nothing written for the failing profile');
+  });
+
+  it('throws a ONE-LINE, path-including error when the COMMON config fails to parse', () => {
+    // REGRESSION (top-level parse leak): malformed profiles/common/config.yaml
+    // used to propagate the raw multi-line YAMLParseError with no file name.
+    // mergeConfig must now throw a single-line error naming the file.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    const commonPath = path.join(commonDir, 'config.yaml');
+    fs.writeFileSync(commonPath, `model: [unclosed\n`);
+
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Common config is not valid YAML/);
+        assert.ok(err.message.includes(commonPath), `must name the common config path:\n${err.message}`);
+        assert.ok(!err.message.includes('\n'), `must be one line:\n${err.message}`);
+        assert.ok(!err.message.includes('model: [unclosed'), `no raw source snippet:\n${err.message}`);
+        assert.ok(!/^\^$/m.test(err.message), `no raw caret line:\n${err.message}`);
+        return true;
+      }
+    );
+  });
 });
