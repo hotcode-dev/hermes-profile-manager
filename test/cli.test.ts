@@ -1238,3 +1238,120 @@ describe('CLI --profiles with a path-traversal name: merge/link reject before an
     assertRejectedRun(r, 'link plugins', /Failed: 1 link step failed/);
   });
 });
+
+describe('CLI -r/--root: an explicit root is authoritative; auto-detect only when absent', () => {
+  let tmpDir: string;
+  let outer: string;  // ancestor workspace carrying the profiles/common marker
+  let inner: string;  // explicit --root target: has profiles/ but NO profiles/common
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-rootflag-'));
+    outer = tmpDir;
+    inner = path.join(outer, 'inner');
+    // Full valid workspace at the ancestor (outer).
+    scaffoldWorkspace(outer);
+    const outerProf = path.join(outer, 'profiles', 'outer-prof');
+    fs.mkdirSync(outerProf, { recursive: true });
+    fs.writeFileSync(path.join(outerProf, 'config.custom.yaml'), `model: "outer"\n`);
+    // Nested dir inside outer: a profiles/ tree with a profile, but NO
+    // profiles/common — the exact shape of the reported bug (the explicit
+    // root lacks the marker while an ancestor has it).
+    const innerProf = path.join(inner, 'profiles', 'inner-prof');
+    fs.mkdirSync(innerProf, { recursive: true });
+    fs.writeFileSync(path.join(innerProf, 'config.custom.yaml'), `model: "inner"\n`);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const esc = (p: string): string => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  it('merge config --root <dir-without-marker> targets the EXPLICIT dir, not the ancestor with profiles/common', () => {
+    // Regression: before the fix, findProjectRoot(inner) walked UP and
+    // returned `outer` (the ancestor carrying profiles/common), so the
+    // merge ran against the WRONG workspace and exited 0. Now the explicit
+    // --root is authoritative: inner has no profiles/common/config.yaml, so
+    // the run must fail naming the INNER root — proof it did NOT redirect
+    // to the ancestor.
+    const r = runCli(['merge', 'config', '--root', inner], { cwd: outer });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.match(r.stderr, new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`));
+    // The ancestor workspace must be untouched.
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
+  });
+
+  it('link skills --root <dir-without-marker> names the EXPLICIT root in its failure, not the ancestor', () => {
+    const r = runCli(['link', 'skills', '--root', inner], { cwd: outer });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.match(r.stderr, new RegExp(`Common skills directory not found: ${esc(inner)}\\/profiles\\/common\\/skills`));
+    assert.ok(!fs.existsSync(path.join(inner, 'profiles', 'inner-prof', 'skills')));
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'skills')));
+  });
+
+  it('sync --root <dir-without-marker> fails against the EXPLICIT root and leaves the ancestor workspace untouched', () => {
+    const r = runCli(['sync', '--root', inner], { cwd: outer });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.match(r.stderr, new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`));
+    assert.match(r.stderr, /Failed: the sync run failed/);
+    // The ancestor workspace must not have been merged or linked.
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'SOUL.md')));
+  });
+
+  it('--root given RELATIVELY (with a marked parent) still targets the EXPLICIT dir, resolved from cwd', () => {
+    // inner2 has its OWN profiles/common AND so does its parent (outer):
+    // the operations must target the explicit dir only. Using a relative
+    // --root also pins the path.resolve (cwd-relative) semantics.
+    const inner2 = path.join(outer, 'inner2');
+    const common2 = path.join(inner2, 'profiles', 'common');
+    fs.mkdirSync(path.join(common2, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(common2, 'plugins'), { recursive: true });
+    fs.writeFileSync(path.join(common2, 'config.yaml'), `model: "inner2-base"\n`);
+    fs.writeFileSync(path.join(common2, 'SOUL.md'), '# inner2 common soul\n');
+    const inner2Prof = path.join(inner2, 'profiles', 'inner2-prof');
+    fs.mkdirSync(inner2Prof, { recursive: true });
+    fs.writeFileSync(path.join(inner2Prof, 'config.custom.yaml'), `model: "inner2-value"\n`);
+
+    const r = runCli(['merge', 'config', '--root', 'inner2'], { cwd: outer });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    // The explicit (nested) workspace was merged ...
+    const merged = fs.readFileSync(path.join(inner2Prof, 'config.yaml'), 'utf8');
+    assert.match(merged, /inner2-value/);
+    // ... and the ancestor's profile was NOT touched.
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
+  });
+
+  it('init: scaffolding + initial sync are governed by targetDir, an extra --root does not hijack the location', () => {
+    // Pins the consistent root semantics for `init`: it scaffolds into
+    // targetDir and runs its initial sync against that SAME directory,
+    // regardless of a --root that points at a different (marked) workspace.
+    const brandNew = path.join(outer, 'brand-new');
+    fs.mkdirSync(brandNew, { recursive: true });
+
+    const r = runCli(['init', brandNew, '--root', outer], { cwd: outer });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
+    // Scaffolding + compiled outputs landed in the explicit targetDir ...
+    assert.ok(fs.existsSync(path.join(brandNew, 'profiles', 'common', 'config.yaml')));
+    assert.ok(fs.existsSync(path.join(brandNew, 'profiles', 'main', 'config.yaml')));
+    // ... and the --root workspace was left untouched.
+    assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
+  });
+
+  it('without --root, auto-detection still walks up from cwd to the nearest profiles/common marker', () => {
+    // The default (no-flag) path is unchanged: from a plain subdirectory of
+    // the outer workspace, sync resolves the outer root and merges it.
+    const sub = path.join(outer, 'subdir');
+    fs.mkdirSync(sub, { recursive: true });
+
+    const r = runCli(['merge', 'config'], { cwd: sub });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
+    assert.ok(fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
+  });
+});

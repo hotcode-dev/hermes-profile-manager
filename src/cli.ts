@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import path from 'node:path';
 import { findProjectRoot } from './utils/root-finder.js';
 import { mergeConfig } from './core/config.js';
 import { mergeJobs } from './core/jobs.js';
@@ -23,7 +24,13 @@ program
 
 function getOptions(cmd: any) {
   const globalOpts = program.opts();
-  const rootDir = globalOpts.root ? findProjectRoot(globalOpts.root) : findProjectRoot();
+  // An explicit `-r, --root <path>` is AUTHORITATIVE: resolve it to an
+  // absolute path and use it as-is. The upward search for a
+  // `profiles/common` marker (findProjectRoot) runs ONLY on the no-`--root`
+  // default path. Passing a --root value into findProjectRoot as a starting
+  // point used to silently redirect to an ancestor workspace that carries
+  // the marker, overriding the user's explicit choice with a different root.
+  const rootDir = globalOpts.root ? path.resolve(globalOpts.root) : findProjectRoot();
   const logger = globalOpts.quiet ? () => {} : console.log;
   return {
     rootDir,
