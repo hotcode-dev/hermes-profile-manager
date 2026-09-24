@@ -160,6 +160,40 @@ describe('mergeJobsDocuments', () => {
     assert.equal(noIdJob.schedule, '0 0 * * *');
   });
 
+  it('does not alias base or custom job objects into the merged output', () => {
+    // Regression test: every output job must be a fresh copy. The id-less
+    // base branch used to push the base job BY REFERENCE, so mutating a
+    // returned job silently corrupted the caller's input object.
+    const baseJob = { name: 'base-no-id', schedule: '0 0 * * *' };
+    const baseJob2 = { id: '7', name: 'base-with-id', schedule: '0 1 * * *' };
+    const customJob = { name: 'custom-no-id', schedule: '0 2 * * *' };
+    const base = { jobs: [baseJob, baseJob2] };
+    const custom = { jobs: [customJob] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const jobs = merged.jobs ?? [];
+    assert.equal(jobs.length, 3);
+    // No output job may share identity with any input job.
+    for (const out of jobs) {
+      assert.notEqual(out, baseJob, 'id-less base job must be copied, not aliased');
+      assert.notEqual(out, baseJob2, 'id-d base job must be copied, not aliased');
+      assert.notEqual(out, customJob, 'custom job must be copied, not aliased');
+    }
+
+    // Mutating the returned document must not corrupt the caller's inputs.
+    const mutated = jobs.find((j) => j.name === 'base-no-id');
+    assert.ok(mutated);
+    mutated.name = 'mutated';
+    mutated.extra = true;
+    assert.equal(baseJob.name, 'base-no-id', 'base id-less job input must be untouched');
+    assert.equal((baseJob as Record<string, unknown>).extra, undefined);
+    assert.equal(baseJob2.name, 'base-with-id', 'base id-d job input must be untouched');
+    assert.equal(customJob.name, 'custom-no-id', 'custom job input must be untouched');
+
+    // ...and the merge result content is still correct after the mutation.
+    assert.deepEqual(jobs.map((j) => j.name), ['mutated', 'base-with-id', 'custom-no-id']);
+  });
+
   it('preserves id-less jobs in a top-level array document', () => {
     // normalizeJobsDoc (not exported) wraps top-level arrays into { jobs: [...] };
     // exercise that path end-to-end through a real jobs.custom.json file.
