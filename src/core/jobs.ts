@@ -46,6 +46,23 @@ interface JobsDocument {
   [key: string]: unknown;
 }
 
+/**
+ * Canonical JSON serialization (object keys sorted recursively) so id-less
+ * jobs can be compared by deep content equality regardless of key order.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => canonicalJson(v)).join(',')}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`);
+  return `{${entries.join(',')}}`;
+}
+
 function normalizeJobsDoc(raw: unknown): JobsDocument {
   if (Array.isArray(raw)) {
     return { jobs: raw as JobItem[] };
@@ -66,6 +83,13 @@ function normalizeJobsDoc(raw: unknown): JobsDocument {
  * - Jobs with matching 'id' are merged (custom properties override base job properties).
  * - Jobs only in custom are appended.
  * - Base jobs order is preserved.
+ *
+ * Idempotent for id-less jobs: because `mergeJobs` feeds a previous run's
+ * OUTPUT file back in as the base, every custom job — with or without an id —
+ * is already present in the base on the next run. Id-matched jobs stay
+ * deduped via `baseIds`; id-less custom jobs are deduped by deep content
+ * equality (canonical serialization), so f(f(base, custom), custom) ===
+ * f(base, custom) and repeated merges never grow the jobs list.
  */
 export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocument): JobsDocument {
   const mergedRoot = { ...baseDoc, ...customDoc };
@@ -81,31 +105,47 @@ export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocumen
 
   const baseIds = new Set<string>();
   const mergedJobs: JobItem[] = [];
+  // Canonical content fingerprints of every job kept in the merged document.
+  // Id-less custom jobs cannot be matched by id, so they are deduplicated by
+  // deep content equality instead: a custom job whose serialized content is
+  // already present (because the base file was itself a previous merge
+  // output, or the custom doc repeats the job) is NOT re-appended. This is
+  // what makes re-runs stable: f(f(b, c), c) === f(b, c).
+  const mergedCanons = new Set<string>();
 
   for (const bJob of baseJobs) {
     if (bJob && bJob.id != null) {
       const idStr = String(bJob.id);
       baseIds.add(idStr);
       if (customById.has(idStr)) {
-        mergedJobs.push({ ...bJob, ...customById.get(idStr) });
+        const merged = { ...bJob, ...customById.get(idStr) };
+        mergedJobs.push(merged);
+        mergedCanons.add(canonicalJson(merged));
       } else {
         mergedJobs.push({ ...bJob });
+        mergedCanons.add(canonicalJson(bJob));
       }
-    } else {
+    } else if (bJob) {
       mergedJobs.push(bJob);
+      mergedCanons.add(canonicalJson(bJob));
     }
   }
 
   for (const cJob of customJobs) {
     if (!cJob) continue;
-    if (cJob.id == null) {
-      // Jobs without an id cannot be matched against base ids; always keep them.
-      mergedJobs.push({ ...cJob });
+    if (cJob.id != null && baseIds.has(String(cJob.id))) {
+      // Already matched a base job by id in the loop above.
       continue;
     }
-    if (!baseIds.has(String(cJob.id))) {
-      mergedJobs.push({ ...cJob });
+    const canon = canonicalJson(cJob);
+    if (mergedCanons.has(canon)) {
+      // Content already present in the merged document — an id-less copy
+      // surviving from a previous merge, or a repeated entry. Skip to keep
+      // repeated runs idempotent.
+      continue;
     }
+    mergedJobs.push({ ...cJob });
+    mergedCanons.add(canon);
   }
 
   mergedRoot.jobs = mergedJobs;

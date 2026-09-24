@@ -230,4 +230,126 @@ describe('mergeJobsDocuments', () => {
 
     assert.deepEqual(names, ['base_no_id', 'base_job', 'custom_no_id']);
   });
+
+  it('does not duplicate id-less custom jobs when the base already contains them (idempotent f(f(b,c),c))', () => {
+    // The exact reported drift: base = previous run's output already holds the
+    // id-less custom job, so the custom doc's copy must NOT be re-appended.
+    const custom = { jobs: [{ name: 'custom-job', schedule: '0 0 * * *' }] };
+    const first = mergeJobsDocuments({ jobs: [{ name: 'base-job' }] }, custom);
+    const second = mergeJobsDocuments(first, custom);
+    const third = mergeJobsDocuments(second, custom);
+
+    const names1 = (first.jobs ?? []).map((j) => j.name);
+    const names2 = (second.jobs ?? []).map((j) => j.name);
+    const names3 = (third.jobs ?? []).map((j) => j.name);
+
+    assert.deepEqual(names1, ['base-job', 'custom-job']);
+    // Stable across re-runs: no growth, identical arrays.
+    assert.deepEqual(names2, names1);
+    assert.deepEqual(names3, names1);
+    assert.deepEqual(second, first);
+    assert.deepEqual(third, first);
+  });
+
+  it('does not duplicate id-less custom jobs whose base copy differs only in key order', () => {
+    // Content equality must be deep/canonical, not order-sensitive: the
+    // previous merge output may have reordered keys relative to the source.
+    const base = { jobs: [{ name: 'custom-job', schedule: '0 0 * * *' }] };
+    const custom = { jobs: [{ schedule: '0 0 * * *', name: 'custom-job' }] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const names = (merged.jobs ?? []).map((j) => j.name);
+    assert.deepEqual(names, ['custom-job']);
+  });
+
+  it('does not duplicate id-less custom jobs repeated within the custom doc itself', () => {
+    const base = { jobs: [{ name: 'base-job' }] };
+    const custom = { jobs: [{ name: 'custom-job' }, { name: 'custom-job' }] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const names = (merged.jobs ?? []).map((j) => j.name);
+    assert.deepEqual(names, ['base-job', 'custom-job']);
+  });
+
+  it('still appends id-less custom jobs that are genuinely NEW content', () => {
+    const base = { jobs: [{ name: 'custom-job' }] };
+    const custom = { jobs: [{ name: 'custom-job' }, { name: 'another-job' }] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const names = (merged.jobs ?? []).map((j) => j.name);
+    assert.deepEqual(names, ['custom-job', 'another-job']);
+  });
+
+  it('keeps id-matched jobs idempotent across repeated merges', () => {
+    const base = { jobs: [{ id: '1', name: 'base_job', schedule: '0 */4 * * *' }] };
+    const custom = { jobs: [{ id: '1', name: 'custom_job', schedule: '0 */2 * * *' }, { id: '2', name: 'new_job' }] };
+
+    const first = mergeJobsDocuments(base, custom);
+    const second = mergeJobsDocuments(first, custom);
+
+    assert.deepEqual(second, first);
+    const ids = (second.jobs ?? []).map((j) => j.id);
+    assert.deepEqual(ids, ['1', '2']);
+  });
+});
+
+describe('mergeJobs idempotency (re-run stability)', () => {
+  let tmpRoot: string;
+
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-jobs-idempotent-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('produces an identical jobs array on the 2nd and 3rd run (base = previous output)', () => {
+    // Regression test for the reported bug: merge jobs re-merges the OUTPUT
+    // file as base on every run. Id-less custom jobs used to be re-appended
+    // on every run, so the jobs list grew by one copy per run.
+    const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), JSON.stringify({
+      jobs: [{ name: 'base-job', schedule: '0 0 * * *' }]
+    }));
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+      jobs: [
+        { name: 'custom-job', schedule: '0 */2 * * *' },
+        { id: '1', name: 'id-custom-job', schedule: '0 6 * * *' }
+      ]
+    }));
+
+    const readJobs = () => JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8')).jobs;
+
+    mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+    const run1 = readJobs();
+    assert.deepEqual(run1.map((j: any) => j.name), ['base-job', 'custom-job', 'id-custom-job']);
+
+    mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+    const run2 = readJobs();
+    assert.deepEqual(run2, run1, 'run 2 must be byte-identical to run 1');
+
+    mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+    const run3 = readJobs();
+    assert.deepEqual(run3, run2, 'run 3 must be byte-identical to run 2');
+  });
+
+  it('stays stable when the base file is missing on run 1 (created by the merge itself)', () => {
+    const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+      jobs: [{ name: 'only-custom', payload: { a: 1 } }]
+    }));
+
+    mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+    const run1 = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+    mergeJobs({ rootDir: tmpRoot, logger: () => {} });
+    const run2 = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+
+    assert.deepEqual(run2, run1);
+    assert.equal(run2.jobs.length, 1);
+  });
 });
