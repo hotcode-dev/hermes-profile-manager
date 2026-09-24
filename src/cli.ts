@@ -7,7 +7,7 @@ import { mergeJobs } from './core/jobs.js';
 import { mergeSoul } from './core/soul.js';
 import { linkSkills, linkPlugins, linkHermes } from './core/links.js';
 import { mergeAll, linkAll, syncAll } from './core/sync.js';
-import { initWorkspace } from './core/init.js';
+import { initWorkspace, InitFilesystemError } from './core/init.js';
 import { collectMergeErrors, MergeStatusResult } from './utils/merge-results.js';
 
 const program = new Command();
@@ -237,9 +237,14 @@ program
     const dryRun = Boolean(globalOpts.dryRun);
 
     // initWorkspace throws for an invalid profile name (path traversal,
-    // empty string, etc.) before any side effects occur. Wrap it in a
+    // empty string, etc.) before any side effects occur, and throws a typed
+    // InitFilesystemError when a scaffolding filesystem operation fails
+    // (EEXIST collision, EACCES, EISDIR, ENOSPC, ...). Wrap it in a
     // try/catch so the CLI produces a clean one-line error + non-zero exit
-    // — matching the safeLink / finishMerge error contract.
+    // — matching the safeLink / finishMerge error contract — with the
+    // CORRECT guidance for each failure class: the "invalid profile name"
+    // message only for genuine name-validation failures, and the real
+    // filesystem errno (with the offending path) for everything else.
     let result: ReturnType<typeof initWorkspace>;
     try {
       result = initWorkspace({
@@ -251,8 +256,16 @@ program
         logger
       });
     } catch (err: unknown) {
-      console.error(`\u2717 ${err instanceof Error ? err.message : String(err)}`);
-      console.error('Failed: invalid profile name. Use a single path-safe segment (letters, digits, dots, hyphens, underscores).');
+      const message = err instanceof Error ? err.message : String(err);
+      const isNameValidationError =
+        !(err instanceof InitFilesystemError) &&
+        (err instanceof Error ? err.message : '').startsWith('Invalid profile name:');
+      console.error(`\u2717 ${message}`);
+      if (isNameValidationError) {
+        console.error('Failed: invalid profile name. Use a single path-safe segment (letters, digits, dots, hyphens, underscores).');
+      } else {
+        console.error('Failed: initialization failed. Check the path reported above for a filesystem conflict (pre-existing file, permission, disk space) and fix it, then re-run.');
+      }
       process.exit(1);
     }
 

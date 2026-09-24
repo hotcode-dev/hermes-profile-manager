@@ -26,6 +26,30 @@ export interface InitResult {
   syncResult?: SyncAllResult;
 }
 
+/**
+ * Thrown when a filesystem operation during init scaffolding fails
+ * (EEXIST collision, EACCES permission, EISDIR, ENOSPC, ...).
+ *
+ * Profile-name validation failures ({@link validateProfileName}) throw a
+ * plain `Error` with the `Invalid profile name:` prefix; this typed error is
+ * the UNAMBIGUOUS marker for every other, non-validation failure. The CLI's
+ * `init` handler branches on it so a filesystem errno is never mislabeled as
+ * "invalid profile name".
+ */
+export class InitFilesystemError extends Error {
+  /** Workspace-relative path of the offending file or directory. */
+  readonly targetPath: string;
+  /** The filesystem operation that failed ('mkdir' | 'writeFile'). */
+  readonly operation: string;
+
+  constructor(relativePath: string, operation: string, cause: Error) {
+    super(`Failed to ${operation} ${relativePath}: ${cause.message}`, { cause });
+    this.name = 'InitFilesystemError';
+    this.targetPath = relativePath;
+    this.operation = operation;
+  }
+}
+
 const DEFAULT_COMMON_CONFIG = `# Common Hermes Configuration
 # Inherited by all profiles. Profiles can override keys in config.custom.yaml.
 model: "openai/gpt-4o"
@@ -95,6 +119,20 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   const createdFiles: string[] = [];
   const skippedFiles: string[] = [];
 
+  // Wrap a raw filesystem errno (EEXIST, EACCES, EISDIR, ENOSPC, ...) into
+  // an InitFilesystemError naming the offending workspace-relative path.
+  // Without this, a raw NodeJS.ErrnoException escapes initWorkspace with no
+  // context about WHICH scaffolding file failed, and the CLI used to label
+  // every init throw as an "invalid profile name" (which is factually wrong
+  // for a filesystem collision/permission/disk-full condition).
+  function failFs(
+    relativePath: string,
+    operation: 'mkdir' | 'writeFile',
+    err: unknown
+  ): never {
+    throw new InitFilesystemError(relativePath, operation, err as Error);
+  }
+
   function ensureFile(filePath: string, content: string): void {
     // Dry-run: record the would-be creation without touching the disk
     // (neither the parent directories nor the file itself).
@@ -104,15 +142,37 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
       return;
     }
 
+    const relPath = path.relative(targetDir, filePath);
     const dir = path.dirname(filePath);
-    fs.mkdirSync(dir, { recursive: true });
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (err) {
+      failFs(path.relative(targetDir, dir), 'mkdir', err);
+    }
+
+    // A path that exists as something OTHER than a regular file (a directory,
+    // a symlink to a directory, a device node, ...) is NOT a legitimate
+    // "existing file": existsSync would silently skip it, and writeFileSync
+    // would then fail with a bare EISDIR far from the cause. Report it up
+    // front with the offending path instead.
+    if (fs.existsSync(filePath) && !fs.statSync(filePath).isFile()) {
+      failFs(relPath, 'writeFile', {
+        name: 'EISDIR',
+        code: 'EISDIR',
+        message: 'is a directory (a non-file exists at the scaffolding path)'
+      } as NodeJS.ErrnoException);
+    }
 
     if (fs.existsSync(filePath) && !force) {
       skippedFiles.push(filePath);
       return;
     }
 
-    fs.writeFileSync(filePath, content, 'utf8');
+    try {
+      fs.writeFileSync(filePath, content, 'utf8');
+    } catch (err) {
+      failFs(relPath, 'writeFile', err);
+    }
     createdFiles.push(filePath);
     log(`Created: ${path.relative(targetDir, filePath)}`);
   }
@@ -123,8 +183,14 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
 
   // Common directories
   if (!dryRun) {
-    fs.mkdirSync(path.join(commonDir, 'skills'), { recursive: true });
-    fs.mkdirSync(path.join(commonDir, 'plugins'), { recursive: true });
+    for (const subDir of ['skills', 'plugins']) {
+      const dirPath = path.join(commonDir, subDir);
+      try {
+        fs.mkdirSync(dirPath, { recursive: true });
+      } catch (err) {
+        failFs(path.relative(targetDir, dirPath), 'mkdir', err);
+      }
+    }
   }
 
   // Initial profile scaffolding
