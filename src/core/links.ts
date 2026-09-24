@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureSymlinkSync, getProfileNames } from '../utils/fs-helpers.js';
+import { ensureSymlinkSync, getProfileNames, pruneStaleSymlinks } from '../utils/fs-helpers.js';
 import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
 
 export interface LinkOptions {
@@ -62,6 +62,10 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
     // Defense in depth: the profile dir must stay strictly under
     // profilesDir (closes traversal even for non-explicit names).
     assertProfilePathInWorkspace(profilesDir, profileSkillsDir);
+
+    // Prune dangling symlinks left behind by deleted/renamed common skills
+    // (runs only after the guards above; real dirs are never touched).
+    pruneStaleSymlinks(profileSkillsDir, Boolean(options.dryRun), log);
 
     for (const skillName of skillEntries) {
       const targetRel = `../../common/skills/${skillName}`;
@@ -136,6 +140,10 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     // profilesDir (closes traversal even for non-explicit names).
     assertProfilePathInWorkspace(profilesDir, profilePluginsDir);
 
+    // Prune dangling symlinks left behind by deleted/renamed common plugins
+    // (runs only after the guards above; real dirs are never touched).
+    pruneStaleSymlinks(profilePluginsDir, Boolean(options.dryRun), log);
+
     for (const pluginName of pluginEntries) {
       const targetRel = `../../common/plugins/${pluginName}`;
       const linkPath = path.join(profilePluginsDir, pluginName);
@@ -160,8 +168,10 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     }
   }
 
-  // 2. Link to ~/.hermes/plugins
+  // 2. Link to ~/.hermes/plugins (prune dangling symlinks there first; the
+  // dir may legitimately be absent, in which case pruning is a no-op).
   const hermesPluginsDir = path.join(hermesDir, 'plugins');
+  pruneStaleSymlinks(hermesPluginsDir, Boolean(options.dryRun), log);
   for (const pluginName of pluginEntries) {
     const pluginSource = path.join(commonPluginsDir, pluginName);
     const linkPath = path.join(hermesPluginsDir, pluginName);
