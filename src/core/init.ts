@@ -159,7 +159,7 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
       failFs(relPath, 'writeFile', {
         name: 'EISDIR',
         code: 'EISDIR',
-        message: 'is a directory (a non-file exists at the scaffolding path)'
+        message: 'EISDIR: is a directory (a non-file exists at the scaffolding path)'
       } as NodeJS.ErrnoException);
     }
 
