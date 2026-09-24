@@ -273,4 +273,50 @@ describe('link operations', () => {
     }
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been created outside the workspace');
   });
+
+  it('linkSkills/linkPlugins reject the reserved name "common" BEFORE the self-symlink corruption', () => {
+    // RESERVED-NAME REGRESSION (probe 3 of zf-hpm-e420a204): with a skill at
+    // profiles/common/skills/myskill, `linkSkills -p common` used to see the
+    // real shared dir at the SAME path as the link target, move the ACTUAL
+    // shared skill aside to myskill.hpm-backup.<ts>, and replace it with a
+    // self-referential symlink (../../common/skills/myskill) — leaving the
+    // shared skill dangling for EVERY profile. The reserved name must be
+    // rejected during the up-front validation loop, before any rename or
+    // symlink side effect.
+    const commonSkillDir = path.join(tmpDir, 'profiles', 'common', 'skills', 'myskill');
+    fs.mkdirSync(commonSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(commonSkillDir, 'SKILL.md'), '# myskill\n');
+    const commonPluginDir = path.join(tmpDir, 'profiles', 'common', 'plugins', 'myplugin');
+    fs.mkdirSync(commonPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(commonPluginDir, 'README.md'), '# myplugin\n');
+
+    for (const invoke of [
+      () => linkSkills({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['common'], logger: () => {} })
+    ]) {
+      assert.throws(
+        invoke,
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /Invalid profile name: "common"/);
+          assert.match(err.message, /reserved for the shared common profile directory/);
+          return true;
+        }
+      );
+    }
+
+    // The shared skill is still the REAL directory (no self-symlink, no
+    // .hpm-backup move): no symlink anywhere under the shared skills dir and
+    // no hpm-backup artifact was created.
+    assert.ok(!fs.lstatSync(commonSkillDir).isSymbolicLink(), 'shared skill must not have become a symlink');
+    assert.equal(
+      fs.readdirSync(path.join(tmpDir, 'profiles', 'common', 'skills')).filter((n) => n.includes('hpm-backup')).length,
+      0,
+      'no .hpm-backup artifact may have been created'
+    );
+    assert.ok(!fs.lstatSync(commonPluginDir).isSymbolicLink(), 'shared plugin must not have become a symlink');
+    // The shared sources are byte-for-byte intact.
+    assert.equal(fs.readFileSync(path.join(commonSkillDir, 'SKILL.md'), 'utf8'), '# myskill\n');
+    assert.equal(fs.readFileSync(path.join(commonPluginDir, 'README.md'), 'utf8'), '# myplugin\n');
+  });
 });
