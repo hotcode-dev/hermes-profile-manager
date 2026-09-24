@@ -69,6 +69,58 @@ describe('link operations', () => {
     assert.equal(fs.readlinkSync(hermesPluginLink), commonPlugins);
   });
 
+  it('linkPlugins with explicit profiles does NOT touch the global hermes plugins dir', () => {
+    // SCOPE GATE REGRESSION (the bug this fix addresses): step 2 of
+    // linkPlugins used to unconditionally symlink every common plugin into
+    // <hermesDir>/plugins, so `hpm link plugins -p x` (and `hpm sync -p x`)
+    // wrote into the global Hermes home even though -p scopes the run. An
+    // explicit non-empty profiles list must now skip the global half while
+    // still linking the named profiles (step 1 unchanged).
+    const commonPlugins = path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin');
+    fs.mkdirSync(commonPlugins, { recursive: true });
+    fs.writeFileSync(path.join(commonPlugins, 'index.py'), '# plugin');
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    const lines: string[] = [];
+    const results = linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['worker'], logger: (m) => lines.push(m) });
+
+    // Step 1: the explicitly targeted profile still gets its link.
+    const workerPluginLink = path.join(workerDir, 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerPluginLink));
+    assert.ok(fs.lstatSync(workerPluginLink).isSymbolicLink());
+    assert.equal(fs.readlinkSync(workerPluginLink), '../../common/plugins/test-plugin');
+
+    // Step 2: the global plugins dir must NOT have been created or written.
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'no writes into the global hermes plugins dir');
+    assert.ok(!lines.some((l) => l.includes(hermesDir)), `no global-link log lines:\n${lines.join('\n')}`);
+    const hermesResults = results.filter((r) => r.type === 'hermes-plugin');
+    assert.equal(hermesResults.length, 0, 'no hermes-plugin results reported for a scoped run');
+  });
+
+  it('linkPlugins with an explicit EMPTY profiles list still links the global plugins dir (default behavior)', () => {
+    // An empty explicit list names no profile, so the run is a DEFAULT
+    // (untargeted) run — exactly like omitting `profiles` — and keeps the
+    // historical global-link behavior. (Mirrors the merge-step contract:
+    // an empty list falls back to auto-discovery and is NOT a scope gate.)
+    const commonPlugins = path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin');
+    fs.mkdirSync(commonPlugins, { recursive: true });
+    fs.writeFileSync(path.join(commonPlugins, 'index.py'), '# plugin');
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    linkPlugins({ rootDir: tmpDir, hermesDir, profiles: [], logger: () => {} });
+
+    const hermesPluginLink = path.join(hermesDir, 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(hermesPluginLink), 'empty profiles list is a default run: global link still created');
+    assert.ok(fs.lstatSync(hermesPluginLink).isSymbolicLink());
+    assert.equal(fs.readlinkSync(hermesPluginLink), commonPlugins);
+    // The discovered profile also got its link (auto-discovery fallback).
+    assert.ok(fs.existsSync(path.join(workerDir, 'plugins', 'test-plugin')));
+  });
+
   it('links profiles directory to hermes home directory', () => {
     const profilesDir = path.join(tmpDir, 'profiles');
     fs.mkdirSync(profilesDir, { recursive: true });

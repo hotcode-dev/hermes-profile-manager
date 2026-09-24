@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { validateProfileName, assertProfilePathInWorkspace } from '../src/utils/profile-name.js';
+import { validateProfileName, assertProfilePathInWorkspace, assertPathInBase } from '../src/utils/profile-name.js';
 
 describe('validateProfileName', () => {
   it('accepts valid single-segment profile names', () => {
@@ -58,5 +58,33 @@ describe('assertProfilePathInWorkspace', () => {
     assert.throws(() => assertProfilePathInWorkspace(profilesDir, '/ws/profiles2'), /escapes the workspace boundary/);
     assert.throws(() => assertProfilePathInWorkspace(profilesDir, '/pwned/config.yaml'), /escapes the workspace boundary/);
     assert.throws(() => assertProfilePathInWorkspace(profilesDir, '/ws/profiles/../pwned'), /escapes the workspace boundary/);
+  });
+});
+
+describe('assertPathInBase', () => {
+  const base = '/home/u/.hermes';
+
+  it('accepts paths strictly under the base dir', () => {
+    assert.doesNotThrow(() => assertPathInBase(base, '/home/u/.hermes/plugins'));
+    assert.doesNotThrow(() => assertPathInBase(base, path.join(base, 'profiles', 'main')));
+    // The candidate is built from the base at call sites; the guard must
+    // hold even when the base itself is a relative path.
+    assert.doesNotThrow(() => assertPathInBase('.hermes', path.join('.hermes', 'plugins')));
+  });
+
+  it('rejects the base dir itself and any path outside it', () => {
+    assert.throws(() => assertPathInBase(base, '/home/u/.hermes'), /escapes the boundary/);
+    assert.throws(() => assertPathInBase(base, '/home/u/.hermes2/plugins'), /escapes the boundary/);
+    assert.throws(() => assertPathInBase(base, '/pwned/plugins'), /escapes the boundary/);
+    assert.throws(() => assertPathInBase(base, '/home/u/.hermes/../pwned/plugins'), /escapes the boundary/);
+  });
+
+  it('rejects relative candidates that resolve outside the base', () => {
+    // A relative base resolves against the process cwd; a relative
+    // candidate that escapes it must be rejected, not accepted.
+    assert.throws(
+      () => assertPathInBase('/tmp/somebase', path.join('/tmp/somebase', '..', 'pwned')),
+      /escapes the boundary/
+    );
   });
 });

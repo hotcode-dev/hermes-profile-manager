@@ -48,3 +48,21 @@ export function assertProfilePathInWorkspace(profilesDir: string, candidatePath:
     );
   }
 }
+
+/**
+ * Generic boundary guard: assert that a constructed destination path stays
+ * strictly under a base directory. Defense in depth against a
+ * base-directory value (e.g. `--hermes-dir` / `$HERMES_HOME`) or a path
+ * constructed from it resolving OUTSIDE the intended location — analogous
+ * to {@link assertProfilePathInWorkspace} for the Hermes home half of the
+ * link steps.
+ */
+export function assertPathInBase(baseDir: string, candidatePath: string): void {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedCandidate = path.resolve(candidatePath);
+  if (!resolvedCandidate.startsWith(resolvedBase + path.sep)) {
+    throw new Error(
+      `Destination path "${resolvedCandidate}" escapes the boundary "${resolvedBase}"`
+    );
+  }
+}
