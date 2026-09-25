@@ -69,7 +69,16 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
   }
 
   const commonRaw = fs.readFileSync(commonConfigPath, 'utf8');
-  const commonParsed = parseYaml(commonRaw);
+  let commonParsed: unknown;
+  try {
+    commonParsed = parseYaml(commonRaw);
+  } catch (err: unknown) {
+    // Flatten the multi-line YAMLParseError (which embeds a source snippet
+    // and caret) to its first line and name the file: the CLI's one-line
+    // error contract must hold, and the raw parse error carries no path.
+    const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    throw new Error(`Common config is not valid YAML: ${commonConfigPath} — ${reason}`);
+  }
   if (!isPlainObject(commonParsed)) {
     throw new Error(`Common config must be a YAML object: ${commonConfigPath}`);
   }
@@ -114,7 +123,16 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
 
     try {
       const customRaw = fs.readFileSync(customConfigPath, 'utf8');
-      const customParsed = parseYaml(customRaw) ?? {};
+      let customParsed: unknown;
+      try {
+        customParsed = parseYaml(customRaw) ?? {};
+      } catch (err: unknown) {
+        // Same one-line, path-including wrap as the top-level common parse
+        // above: the raw multi-line parse error would leak the source
+        // snippet into the CLI report and name no file.
+        const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+        throw new Error(`Custom config is not valid YAML: ${customConfigPath} — ${reason}`);
+      }
 
       if (!isPlainObject(customParsed)) {
         throw new Error(`Custom config is not a valid YAML object: ${customConfigPath}`);

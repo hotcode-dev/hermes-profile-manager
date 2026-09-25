@@ -817,6 +817,56 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     assert.match(r.stderr, /Failed: the merge run failed/);
   });
 
+  it('merge config exits 1 with a ONE-LINE, path-named error when the COMMON config fails to parse', () => {
+    // REGRESSION (top-level parse leak): a malformed profiles/common/config.yaml
+    // used to surface the raw multi-line YAMLParseError (source snippet +
+    // caret) with no file name — the user could not tell WHICH file or even
+    // which operation failed. finishMerge prints the one-line message.
+    scaffoldWorkspace(tmpDir);
+    const commonPath = path.join(tmpDir, 'profiles', 'common', 'config.yaml');
+    fs.writeFileSync(commonPath, `model: [unclosed\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // The ✗ line is ONE line and names the common config path.
+    const esc = (p: string): string => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const errLine = r.stderr.split('\n').find((l) => l.includes('Common config is not valid YAML'));
+    assert.ok(errLine, `one-line parse error missing from stderr:\n${r.stderr}`);
+    assert.match(errLine, new RegExp(`\\u2717 Common config is not valid YAML: ${esc(commonPath)}`));
+    assert.match(r.stderr, /Failed: the merge run failed/);
+    // No raw source snippet or caret leaked into the report.
+    assert.ok(!r.stderr.includes('model: [unclosed'), `no raw source snippet:\n${r.stderr}`);
+    assert.ok(!/^\^$/m.test(r.stderr), `no raw caret line:\n${r.stderr}`);
+  });
+
+  it('merge config exits 1 with a ONE-LINE, path-named error when a custom config fails to parse', () => {
+    // REGRESSION (per-profile parse leak): a malformed config.custom.yaml
+    // used to surface the raw multi-line YAMLParseError as the `✗ bad:`
+    // entry — no file name, 5+ lines mangled into the report. The error
+    // entry is now a single line naming the file.
+    scaffoldWorkspace(tmpDir);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    const customPath = path.join(badDir, 'config.custom.yaml');
+    fs.writeFileSync(customPath, `model: [unclosed\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /bad: Custom config is not valid YAML/);
+    // The ✗ line is ONE line and names the custom config file.
+    const errLine = r.stderr.split('\n').find((l) => l.startsWith('\u2717 bad:'));
+    assert.ok(errLine, `✗ bad: line missing from stderr:\n${r.stderr}`);
+    assert.ok(errLine.includes(customPath), `✗ line must name the file:\n${errLine}`);
+    assert.match(r.stderr, /Failed: 1 profile\(s\) had merge errors/);
+    // No raw source snippet or caret leaked into the report.
+    assert.ok(!r.stderr.includes('model: [unclosed'), `no raw source snippet:\n${r.stderr}`);
+    assert.ok(!/^\^$/m.test(r.stderr), `no raw caret line:\n${r.stderr}`);
+  });
+
   it('merge config exits 0 with the banner when the workspace is genuinely valid (regression guard)', () => {
     scaffoldWorkspace(tmpDir);
     const goodDir = path.join(tmpDir, 'profiles', 'good');

@@ -134,27 +134,15 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   }
 
   function ensureFile(filePath: string, content: string): void {
-    // Dry-run: record the would-be creation without touching the disk
-    // (neither the parent directories nor the file itself).
-    if (dryRun) {
-      createdFiles.push(filePath);
-      log(`Would create: ${path.relative(targetDir, filePath)}`);
-      return;
-    }
-
     const relPath = path.relative(targetDir, filePath);
     const dir = path.dirname(filePath);
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-    } catch (err) {
-      failFs(path.relative(targetDir, dir), 'mkdir', err);
-    }
 
     // A path that exists as something OTHER than a regular file (a directory,
     // a symlink to a directory, a device node, ...) is NOT a legitimate
     // "existing file": existsSync would silently skip it, and writeFileSync
     // would then fail with a bare EISDIR far from the cause. Report it up
-    // front with the offending path instead.
+    // front with the offending path instead — in dry-run too, since the
+    // preview must surface the same collision a real run would hit.
     if (fs.existsSync(filePath) && !fs.statSync(filePath).isFile()) {
       failFs(relPath, 'writeFile', {
         name: 'EISDIR',
@@ -163,9 +151,29 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
       } as NodeJS.ErrnoException);
     }
 
+    // The exists/!force skip contract applies to dry-run as well: an
+    // existing file (without force) is skipped, never reported as a
+    // would-be create. Otherwise `init --dry-run` on a pre-seeded
+    // workspace would list every existing file under `createdFiles`
+    // ("Would create") and the CLI's "Files to create" count would
+    // overstate what a real run would actually create.
     if (fs.existsSync(filePath) && !force) {
       skippedFiles.push(filePath);
       return;
+    }
+
+    if (dryRun) {
+      // Record the would-be creation without touching the disk (neither
+      // the parent directories nor the file itself).
+      createdFiles.push(filePath);
+      log(`Would create: ${relPath}`);
+      return;
+    }
+
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (err) {
+      failFs(path.relative(targetDir, dir), 'mkdir', err);
     }
 
     try {
@@ -174,7 +182,7 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
       failFs(relPath, 'writeFile', err);
     }
     createdFiles.push(filePath);
-    log(`Created: ${path.relative(targetDir, filePath)}`);
+    log(`Created: ${relPath}`);
   }
 
   // Common scaffolding
