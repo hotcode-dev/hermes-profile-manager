@@ -96,19 +96,27 @@ export function initWorkspace(options: InitOptions = {}): InitResult {
   const skippedFiles: string[] = [];
 
   function ensureFile(filePath: string, content: string): void {
-    // Dry-run: record the would-be creation without touching the disk
-    // (neither the parent directories nor the file itself).
-    if (dryRun) {
-      createdFiles.push(filePath);
-      log(`Would create: ${path.relative(targetDir, filePath)}`);
+    if (!dryRun) {
+      const dir = path.dirname(filePath);
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // The exists/!force skip contract applies to dry-run as well: an
+    // existing file (without force) is skipped, never reported as a
+    // would-be create. Otherwise `init --dry-run` on a pre-seeded
+    // workspace would list every existing file under `createdFiles`
+    // ("Would create") and the CLI's "Files to create" count would
+    // overstate what a real run would actually create.
+    if (fs.existsSync(filePath) && !force) {
+      skippedFiles.push(filePath);
       return;
     }
 
-    const dir = path.dirname(filePath);
-    fs.mkdirSync(dir, { recursive: true });
-
-    if (fs.existsSync(filePath) && !force) {
-      skippedFiles.push(filePath);
+    if (dryRun) {
+      // Record the would-be creation without touching the disk (neither
+      // the parent directories nor the file itself).
+      createdFiles.push(filePath);
+      log(`Would create: ${path.relative(targetDir, filePath)}`);
       return;
     }
 

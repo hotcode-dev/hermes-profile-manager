@@ -84,6 +84,24 @@ function normalizeJobsDoc(raw: unknown): JobsDocument {
 }
 
 /**
+ * True when `raw` carries a jobs list that `normalizeJobsDoc` preserves:
+ * a top-level array, or a non-null object whose `jobs` property is an
+ * array. Anything else gets its jobs list reset to `[]` by
+ * `normalizeJobsDoc`, so callers can use this to surface that reset
+ * instead of letting it happen silently.
+ */
+function isJobsDocShaped(raw: unknown): boolean {
+  if (Array.isArray(raw)) {
+    return true;
+  }
+  return (
+    typeof raw === 'object' &&
+    raw !== null &&
+    Array.isArray((raw as Record<string, unknown>).jobs)
+  );
+}
+
+/**
  * Merges base jobs and custom jobs matching the original jq logic:
  * - Top-level properties: custom overrides base.
  * - Jobs with matching 'id' are merged (custom properties override base job properties).
@@ -222,12 +240,36 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
 
         let baseParsed: unknown = { jobs: [] };
         if (fs.existsSync(outputJobsPath)) {
+          let baseOk = false;
           try {
             const baseRaw = fs.readFileSync(outputJobsPath, 'utf8');
             baseParsed = JSON.parse(baseRaw);
+            baseOk = true;
           } catch {
-            // If base file is corrupt or empty, fallback cleanly to empty document
+            // Base file exists but does not parse. Fall back to an empty
+            // document (the correct recovery behavior — an unparseable base
+            // has no recoverable jobs) but make the data loss VISIBLE: the
+            // next write below overwrites this file with custom jobs only,
+            // dropping every previously merged base job.
             baseParsed = { jobs: [] };
+          }
+          if (baseOk && !isJobsDocShaped(baseParsed)) {
+            // Valid JSON but not a jobs document (e.g. `42`, `"foo"`,
+            // `{noJobs: true}`): normalizeJobsDoc resets its jobs list to
+            // [] below, dropping every previously merged base job just as
+            // silently as the parse-failure path above. Surface it the same
+            // way.
+            log(
+              `Warning: base jobs file is not a jobs document at ${outputJobsPath} — ` +
+                'resetting to empty base; previously merged jobs will be lost. ' +
+                'Fix or restore the file before the next run.'
+            );
+          } else if (!baseOk) {
+            log(
+              `Warning: base jobs file is not valid JSON at ${outputJobsPath} — ` +
+                'resetting to empty base; previously merged jobs will be lost. ' +
+                'Fix or restore the file before the next run.'
+            );
           }
         }
 
