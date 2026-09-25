@@ -90,6 +90,46 @@ function uniqueBackupPath(linkPath: string): string {
 }
 
 /**
+ * Removes dangling symlinks in a link directory (entries whose target no
+ * longer resolves, e.g. after a common skill/plugin was deleted or renamed).
+ *
+ * - Only symlinks are ever removed: real directories and regular files are
+ *   NEVER touched (a real directory occupying a slot is the user's data —
+ *   see the `ensureSymlinkSync` backup-sibling contract).
+ * - A missing directory is a clean no-op (e.g. `~/.hermes/plugins` absent).
+ * - Honors `dryRun`: logs `Would remove stale symlink: <path>` and touches
+ *   nothing; a live run logs `Removed stale symlink: <path>`.
+ */
+export function pruneStaleSymlinks(dir: string, dryRun: boolean, log: (msg: string) => void): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return; // Directory does not exist — nothing to prune.
+    }
+    throw err;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink()) {
+      continue;
+    }
+    const linkPath = path.join(dir, entry.name);
+    try {
+      fs.statSync(linkPath); // follows the link; throws when dangling
+    } catch {
+      if (!dryRun) {
+        fs.unlinkSync(linkPath);
+        log(`Removed stale symlink: ${linkPath}`);
+      } else {
+        log(`Would remove stale symlink: ${linkPath}`);
+      }
+    }
+  }
+}
+
+/**
  * Discovers all profile directory names in profilesDir excluding 'common' and hidden dirs.
  */
 export function getProfileNames(profilesDir: string): string[] {
