@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureSymlinkSync, getProfileNames } from '../utils/fs-helpers.js';
+import { ensureSymlinkSync, getProfileNames, pruneStaleSymlinks } from '../utils/fs-helpers.js';
 import { validateProfileName, assertProfilePathInWorkspace, assertPathInBase } from '../utils/profile-name.js';
 
 export interface LinkOptions {
@@ -62,6 +62,10 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
     // Defense in depth: the profile dir must stay strictly under
     // profilesDir (closes traversal even for non-explicit names).
     assertProfilePathInWorkspace(profilesDir, profileSkillsDir);
+
+    // Prune dangling symlinks left behind by deleted/renamed common skills
+    // (runs only after the guards above; real dirs are never touched).
+    pruneStaleSymlinks(profileSkillsDir, Boolean(options.dryRun), log);
 
     for (const skillName of skillEntries) {
       const targetRel = `../../common/skills/${skillName}`;
@@ -145,6 +149,10 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     // profilesDir (closes traversal even for non-explicit names).
     assertProfilePathInWorkspace(profilesDir, profilePluginsDir);
 
+    // Prune dangling symlinks left behind by deleted/renamed common plugins
+    // (runs only after the guards above; real dirs are never touched).
+    pruneStaleSymlinks(profilePluginsDir, Boolean(options.dryRun), log);
+
     for (const pluginName of pluginEntries) {
       const targetRel = `../../common/plugins/${pluginName}`;
       const linkPath = path.join(profilePluginsDir, pluginName);
@@ -180,6 +188,11 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     // Defense in depth: the plugins dir we write must stay strictly under
     // the hermes home dir (mirrors the profile-side boundary check).
     assertPathInBase(hermesDir, hermesPluginsDir);
+    // Prune dangling symlinks left behind by deleted/renamed common plugins
+    // first (the dir may legitimately be absent, in which case pruning is a
+    // no-op). Runs only on the untargeted path: a scoped run must not touch
+    // the global dir at all.
+    pruneStaleSymlinks(hermesPluginsDir, Boolean(options.dryRun), log);
 
     for (const pluginName of pluginEntries) {
       const pluginSource = path.join(commonPluginsDir, pluginName);

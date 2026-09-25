@@ -310,6 +310,105 @@ describe('link operations', () => {
     assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'no hermes-side plugin links on rejection');
   });
 
+  it('prunes dangling symlinks left by a renamed common skill and keeps real dirs untouched', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'skills');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    const workerSkills = path.join(tmpDir, 'profiles', 'worker', 'skills');
+    fs.mkdirSync(workerSkills, { recursive: true });
+
+    const lines: string[] = [];
+    linkSkills({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    const alphaLink = path.join(workerSkills, 'alpha');
+    assert.ok(fs.lstatSync(alphaLink).isSymbolicLink());
+
+    // A profile-local real directory that pruning must never touch.
+    fs.mkdirSync(path.join(workerSkills, 'local-only'), { recursive: true });
+    fs.writeFileSync(path.join(workerSkills, 'local-only', 'data.txt'), 'keep me');
+
+    // The user renames the shared skill.
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    linkSkills({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+
+    // The dangling alpha link is gone and its removal is logged.
+    assert.throws(() => fs.lstatSync(alphaLink), { code: 'ENOENT' });
+    assert.ok(
+      lines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(alphaLink)),
+      `expected a "Removed stale symlink" line for ${alphaLink} in:\n${lines.join('\n')}`
+    );
+
+    // The renamed skill is linked normally.
+    assert.equal(fs.readlinkSync(path.join(workerSkills, 'beta')), '../../common/skills/beta');
+
+    // The real directory is left completely alone (no prune, no backup).
+    assert.ok(fs.statSync(path.join(workerSkills, 'local-only')).isDirectory());
+    assert.equal(fs.readFileSync(path.join(workerSkills, 'local-only', 'data.txt'), 'utf8'), 'keep me');
+  });
+
+  it('prunes dangling symlinks left by a renamed common plugin (profile and ~/.hermes/plugins)', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'plugins');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+
+    const lines: string[] = [];
+    linkPlugins({ rootDir: tmpDir, hermesDir, logger: (m) => lines.push(m) });
+    const profileLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'alpha');
+    const hermesLink = path.join(hermesDir, 'plugins', 'alpha');
+    assert.ok(fs.lstatSync(profileLink).isSymbolicLink());
+    assert.ok(fs.lstatSync(hermesLink).isSymbolicLink());
+
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    linkPlugins({ rootDir: tmpDir, hermesDir, logger: (m) => lines.push(m) });
+
+    // Both dangling links are gone and both removals are logged.
+    assert.throws(() => fs.lstatSync(profileLink), { code: 'ENOENT' });
+    assert.throws(() => fs.lstatSync(hermesLink), { code: 'ENOENT' });
+    assert.ok(
+      lines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(hermesLink)),
+      `expected a "Removed stale symlink" line for ${hermesLink} in:\n${lines.join('\n')}`
+    );
+
+    // The renamed plugin is linked in both places.
+    assert.equal(fs.readlinkSync(path.join(tmpDir, 'profiles', 'worker', 'plugins', 'beta')), '../../common/plugins/beta');
+    assert.equal(fs.readlinkSync(path.join(hermesDir, 'plugins', 'beta')), path.join(common, 'beta'));
+  });
+
+  it('dry run reports stale symlinks without removing them; the next live run removes them', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'skills');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+
+    linkSkills({ rootDir: tmpDir, logger: () => {} });
+    const alphaLink = path.join(tmpDir, 'profiles', 'worker', 'skills', 'alpha');
+    const betaLink = path.join(tmpDir, 'profiles', 'worker', 'skills', 'beta');
+
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    const dryLines: string[] = [];
+    linkSkills({ rootDir: tmpDir, dryRun: true, logger: (m) => dryLines.push(m) });
+
+    // Reported as a preview, but nothing is removed or created.
+    assert.ok(
+      dryLines.some((l) => l.startsWith('Would remove stale symlink:') && l.includes(alphaLink)),
+      `expected a "Would remove stale symlink" line in:\n${dryLines.join('\n')}`
+    );
+    assert.ok(!dryLines.some((l) => l.startsWith('Removed ')), 'dry run must not claim removals');
+    assert.ok(fs.lstatSync(alphaLink).isSymbolicLink(), 'dangling link must survive the dry run');
+    assert.ok(!fs.existsSync(betaLink), 'dry run must not create the new link');
+
+    const liveLines: string[] = [];
+    linkSkills({ rootDir: tmpDir, logger: (m) => liveLines.push(m) });
+
+    // The live run removes the stale link, links the renamed skill, and logs it.
+    assert.throws(() => fs.lstatSync(alphaLink), { code: 'ENOENT' });
+    assert.ok(
+      liveLines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(alphaLink)),
+      `expected a "Removed stale symlink" line in:\n${liveLines.join('\n')}`
+    );
+    assert.equal(fs.readlinkSync(betaLink), '../../common/skills/beta');
+  });
+
   it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
     for (const name of ['..', './x', 'a/b']) {
       assert.throws(

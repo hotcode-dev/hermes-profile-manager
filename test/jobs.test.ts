@@ -78,7 +78,7 @@ describe('mergeJobs', () => {
     assert.ok(lines.some((l) => l.includes('Would merge jobs to:')), `preview wording missing in:\n${lines.join('\n')}`);
   });
 
-  it('recovers cleanly when base jobs.json is missing or corrupted', () => {
+  it('recovers cleanly when base jobs.json is missing', () => {
     const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
 
@@ -86,13 +86,105 @@ describe('mergeJobs', () => {
       jobs: [{ id: '99', name: 'standalone' }]
     }));
 
-    const results = mergeJobs({ rootDir: tmpDir, logger: () => {} });
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
     assert.equal(results.length, 1);
     assert.equal(results[0].status, 'merged');
 
     const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
     assert.equal(output.jobs.length, 1);
     assert.equal(output.jobs[0].id, '99');
+    // A genuinely ABSENT base is a normal first run, not data loss — no
+    // corruption warning may fire.
+    assert.ok(!lines.some((l) => l.includes('Warning:')), `no warning expected for a missing base:\n${lines.join('\n')}`);
+  });
+
+  it('logs a visible warning when base jobs.json is corrupt (reset to empty base)', () => {
+    // The corrupt-base path: the base IS the accumulated merge output, so
+    // resetting it to { jobs: [] } drops every previously merged base job.
+    // The fallback itself is the correct recovery behavior — the defect is
+    // that it was invisible. The warning must name the corrupt file and the
+    // data loss, while the merge itself succeeds (status 'merged') and the
+    // output holds custom jobs only, documenting the reset behavior.
+    const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '{corrupt: ');
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+      jobs: [{ name: 'custom-only-job', schedule: '0 0 * * *' }]
+    }));
+
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    const warning = lines.find((l) => l.includes('Warning:'));
+    assert.ok(warning, `expected a corruption warning in log, got:\n${lines.join('\n')}`);
+    assert.ok(
+      warning!.includes(path.join(cronDir, 'jobs.json')),
+      `warning must name the corrupt file:\n${warning}`
+    );
+    assert.match(warning!, /not valid JSON/);
+    assert.match(warning!, /previously merged jobs will be lost/);
+
+    // Output was reset to custom jobs only (the documented reset behavior).
+    const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+    assert.equal(output.jobs.length, 1);
+    assert.equal(output.jobs[0].name, 'custom-only-job');
+  });
+
+  it('logs a visible warning when base jobs.json parses but is not a jobs document', () => {
+    // Second silent class: valid JSON with the wrong shape (42, "foo",
+    // {noJobs: true}) — normalizeJobsDoc resets the jobs list to [] just as
+    // silently as the parse-failure path. Same visibility is required.
+    const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '42\n');
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+      jobs: [{ name: 'custom-after-wrong-shape' }]
+    }));
+
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    const warning = lines.find((l) => l.includes('Warning:'));
+    assert.ok(warning, `expected a wrong-shape warning in log, got:\n${lines.join('\n')}`);
+    assert.ok(
+      warning!.includes(path.join(cronDir, 'jobs.json')),
+      `warning must name the base file:\n${warning}`
+    );
+    assert.match(warning!, /not a jobs document/);
+    assert.match(warning!, /previously merged jobs will be lost/);
+
+    const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+    assert.equal(output.jobs.length, 1);
+    assert.equal(output.jobs[0].name, 'custom-after-wrong-shape');
+  });
+
+  it('stays silent about the base when it is a valid jobs document', () => {
+    // Guard against over-warning: a well-formed base (object with a jobs
+    // array, or a top-level array) must not trigger any warning.
+    for (const base of [
+      JSON.stringify({ jobs: [{ id: '1', name: 'base_job' }] }),
+      JSON.stringify([{ id: '1', name: 'base_job' }])
+    ]) {
+      const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+      fs.rmSync(cronDir, { recursive: true, force: true });
+      fs.mkdirSync(cronDir, { recursive: true });
+      fs.writeFileSync(path.join(cronDir, 'jobs.json'), base);
+      fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+        jobs: [{ name: 'custom' }]
+      }));
+
+      const lines: string[] = [];
+      const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+      assert.equal(results[0].status, 'merged');
+      assert.ok(!lines.some((l) => l.includes('Warning:')), `no warning for valid base:\n${lines.join('\n')}`);
+    }
   });
 
   it('rejects a path-traversal profile name BEFORE any filesystem side effect', () => {
@@ -351,5 +443,31 @@ describe('mergeJobs idempotency (re-run stability)', () => {
 
     assert.deepEqual(run2, run1);
     assert.equal(run2.jobs.length, 1);
+  });
+
+  it('is byte-stable across a clean run after a corrupt-base recovery run', () => {
+    // Ties the corrupt-base fallback into the f(f(b,c),c) contract: a run
+    // that recovered from a corrupt base (warning + reset to empty base)
+    // writes a well-formed output; the next run reads THAT as its base and
+    // must be byte-stable — no growth, no extra warnings.
+    const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '{corrupt: ');
+    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
+      jobs: [{ name: 'recovered-job', schedule: '0 0 * * *' }]
+    }));
+
+    const lines: string[] = [];
+    mergeJobs({ rootDir: tmpRoot, logger: (m) => lines.push(m) });
+    assert.ok(lines.some((l) => l.includes('Warning:')), 'recovery run must log the corrupt-base warning');
+    const afterRecovery = fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8');
+
+    lines.length = 0;
+    mergeJobs({ rootDir: tmpRoot, logger: (m) => lines.push(m) });
+    const afterSecond = fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8');
+
+    assert.equal(afterSecond, afterRecovery, '2nd run must be byte-identical to the recovery run');
+    assert.ok(!lines.some((l) => l.includes('Warning:')), `no warning expected on the clean 2nd run:\n${lines.join('\n')}`);
   });
 });

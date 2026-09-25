@@ -257,6 +257,91 @@ describe('initWorkspace', () => {
     assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
   });
 
+  it('dryRun honors the exists/!force skip contract: existing files are skipped, not "would create"', () => {
+    // Regression: the old dry-run branch reported EVERY file as a would-be
+    // create before checking existence, so `init --dry-run` on a fully
+    // scaffolded workspace listed all 5 existing files under
+    // createdFiles ("Would create") and the CLI's "Files to create" count
+    // overstated what a real run would actually create.
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', logger: () => {} });
+
+    const logs: string[] = [];
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      logger: (msg) => logs.push(msg)
+    });
+
+    // All five scaffolding files already exist (no force) → skipped, none would create.
+    assert.equal(result.createdFiles.length, 0);
+    assert.equal(result.skippedFiles.length, 5);
+    // No "Would create" lines for existing files...
+    assert.ok(
+      !logs.some((l) => l.includes('Would create:')),
+      `no "Would create" for existing files: ${JSON.stringify(logs)}`
+    );
+    // ...and still nothing was written (no new files, existing contents intact).
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'x')),
+      'dryRun must not create new entries'
+    );
+    assert.ok(
+      fs.readFileSync(path.join(tmpDir, 'profiles', 'main', 'config.custom.yaml'), 'utf8')
+        .includes('Profile Custom Configuration')
+    );
+    // The dry-run sync notice still fires and no sync ran.
+    assert.ok(logs.some((l) => l.includes('Dry run: initial sync skipped')));
+    assert.equal(result.syncResult, undefined);
+  });
+
+  it('dryRun on a partially pre-seeded workspace splits created vs skipped per file', () => {
+    // Seed only the common scaffolding; the per-profile files are missing.
+    initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: false,
+      logger: () => {}
+    });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'config.custom.yaml'), { force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.custom.md'), { force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'cron', 'jobs.custom.json'), { force: true });
+
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      logger: () => {}
+    });
+
+    // 3 missing profile files → would create; 2 existing common files → skipped.
+    assert.equal(result.createdFiles.length, 3);
+    assert.equal(result.skippedFiles.length, 2);
+    assert.ok(
+      result.createdFiles.every((f) => f.startsWith(path.join(tmpDir, 'profiles', 'main', ''))),
+      `only missing profile files may be would-create: ${JSON.stringify(result.createdFiles)}`
+    );
+  });
+
+  it('dryRun with force still reports existing files as would-be creates (preview of overwrite)', () => {
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', logger: () => {} });
+
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      force: true,
+      logger: () => {}
+    });
+
+    // force lifts the skip: all 5 files would be (re)written by a real run.
+    assert.equal(result.createdFiles.length, 5);
+    assert.equal(result.skippedFiles.length, 0);
+    // ...and dryRun still touches nothing.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'x')));
+    assert.equal(result.syncResult, undefined);
+  });
+
   it('rejects a path-traversal profile name ("../../pwned") and writes NO files outside targetDir', () => {
     // Regression: a `..`-laden name used to make path.join resolve the
     // profile dir OUTSIDE the workspace, so the per-profile scaffolding
