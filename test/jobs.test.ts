@@ -228,6 +228,26 @@ describe('mergeJobs', () => {
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
   });
+
+  it('rejects the reserved profile name "common" BEFORE any read or write of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeJobs -p
+    // common` would read common/cron/jobs.json, merge it with
+    // common/cron/jobs.custom.json, and write the result BACK onto
+    // common/cron/jobs.json — self-merging the shared base. The reserved name
+    // must be rejected during the up-front validation loop.
+    assert.throws(
+      () => mergeJobs({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      }
+    );
+    // No workspace was created or modified at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+  });
 });
 
 describe('mergeJobsDocuments', () => {
@@ -250,6 +270,40 @@ describe('mergeJobsDocuments', () => {
     const noIdJob = jobs.find((j) => j.name === 'no_id_job');
     assert.ok(noIdJob);
     assert.equal(noIdJob.schedule, '0 0 * * *');
+  });
+
+  it('does not alias base or custom job objects into the merged output', () => {
+    // Regression test: every output job must be a fresh copy. The id-less
+    // base branch used to push the base job BY REFERENCE, so mutating a
+    // returned job silently corrupted the caller's input object.
+    const baseJob = { name: 'base-no-id', schedule: '0 0 * * *' };
+    const baseJob2 = { id: '7', name: 'base-with-id', schedule: '0 1 * * *' };
+    const customJob = { name: 'custom-no-id', schedule: '0 2 * * *' };
+    const base = { jobs: [baseJob, baseJob2] };
+    const custom = { jobs: [customJob] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const jobs = merged.jobs ?? [];
+    assert.equal(jobs.length, 3);
+    // No output job may share identity with any input job.
+    for (const out of jobs) {
+      assert.notEqual(out, baseJob, 'id-less base job must be copied, not aliased');
+      assert.notEqual(out, baseJob2, 'id-d base job must be copied, not aliased');
+      assert.notEqual(out, customJob, 'custom job must be copied, not aliased');
+    }
+
+    // Mutating the returned document must not corrupt the caller's inputs.
+    const mutated = jobs.find((j) => j.name === 'base-no-id');
+    assert.ok(mutated);
+    mutated.name = 'mutated';
+    mutated.extra = true;
+    assert.equal(baseJob.name, 'base-no-id', 'base id-less job input must be untouched');
+    assert.equal((baseJob as Record<string, unknown>).extra, undefined);
+    assert.equal(baseJob2.name, 'base-with-id', 'base id-d job input must be untouched');
+    assert.equal(customJob.name, 'custom-no-id', 'custom job input must be untouched');
+
+    // ...and the merge result content is still correct after the mutation.
+    assert.deepEqual(jobs.map((j) => j.name), ['mutated', 'base-with-id', 'custom-no-id']);
   });
 
   it('preserves id-less jobs in a top-level array document', () => {

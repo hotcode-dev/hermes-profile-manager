@@ -142,11 +142,12 @@ describe('initWorkspace', () => {
     assert.equal(parsed.temperature, 0.2);
   });
 
-  it('records a broken top-level common config in syncResult.syncError instead of throwing or warning', () => {
+  it('records a broken top-level common config in syncResult.stepErrors (and syncError) instead of throwing or warning', () => {
     // Seed the workspace, then corrupt the shared common config into a
     // non-object YAML document (a list). init must not overwrite it
     // (no force), and the initial sync must surface the failure through
-    // result.syncResult.syncError — not a throw, not a swallowed warning.
+    // result.syncResult.stepErrors.config (and the backward-compat
+    // result.syncResult.syncError) — not a throw, not a swallowed warning.
     initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
@@ -168,17 +169,31 @@ describe('initWorkspace', () => {
     });
 
     assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
+    // The structured per-step carrier names the failing step...
+    assert.match(
+      result.syncResult.stepErrors.config ?? '',
+      /Common config must be a YAML object/
+    );
+    assert.equal(result.syncResult.stepErrors.jobs, undefined);
+    assert.equal(result.syncResult.stepErrors.soul, undefined);
+    // ...and the deprecated single-field carrier still carries the message
+    // (backward-compat for the public SyncAllResult API).
     assert.match(
       result.syncResult.syncError ?? '',
       /Common config must be a YAML object/
     );
-    // The merge step aborted before the profiles, so the arrays are empty.
+    // The config step aborted before the profiles, so its array is empty...
     assert.equal(result.syncResult.config.length, 0);
-    assert.equal(result.syncResult.jobs.length, 0);
-    assert.equal(result.syncResult.soul.length, 0);
-    // No compiled config.yaml / SOUL.md were produced for the profile.
+    // ...but the jobs/soul steps STILL RAN (step isolation): the main
+    // profile's valid custom sources merged and wrote their outputs.
+    const mainJobs = result.syncResult.jobs.find((r) => r.profile === 'main');
+    assert.equal(mainJobs?.status, 'merged');
+    const mainSoul = result.syncResult.soul.find((r) => r.profile === 'main');
+    assert.equal(mainSoul?.status, 'merged');
+    // No compiled config.yaml was produced (config step failed), but the
+    // SOUL.md from the (still-intact) soul step now exists.
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'config.yaml')));
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
     // The old throw-swallowing behavior is gone: no warning line, no throw.
     assert.ok(
       !logs.some((l) => l.includes('Warning during initial sync')),
@@ -423,6 +438,48 @@ describe('initWorkspace', () => {
       );
       assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
     }
+  });
+
+  it('rejects the reserved profile name "common" BEFORE any filesystem side effect', () => {
+    // RESERVED-NAME REGRESSION: profiles/common/ is the SHARED common profile
+    // directory (base source for every merge/link step). Without the
+    // validator reserving it, initWorkspace would scaffold the per-profile
+    // custom files (config.custom.yaml, SOUL.custom.md,
+    // cron/jobs.custom.json) INTO the shared common dir while getProfileNames
+    // deliberately excludes "common" from the discovered profile list —
+    // an asymmetric contract that corrupts the shared base.
+    assert.throws(
+      () =>
+        initWorkspace({
+          targetDir: tmpDir,
+          profileName: 'common',
+          runSync: false,
+          logger: () => {}
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      }
+    );
+    // The throw happens before any side effect: no profiles/ tree at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
+  });
+
+  it('still accepts names that merely contain "common" (e.g. "common-worker")', () => {
+    // Exact-match reservation only: "common-worker" stays a valid per-profile
+    // name and must NOT be conflated with the reserved shared dir.
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'common-worker',
+      runSync: false,
+      logger: () => {}
+    });
+    assert.equal(result.profileName, 'common-worker');
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'common-worker', 'config.custom.yaml')));
+    // The shared common dir is untouched by the scaffolding (no custom files in it).
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'config.custom.yaml')));
   });
 
   it('still scaffolds a valid profile name with dots, dashes, and underscores (regression guard)', () => {

@@ -131,6 +131,117 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     assert.equal(out.jobs[0].status, 'skipped');
     assert.equal(out.soul.length, 1);
     assert.equal(out.soul[0].status, 'skipped');
+    // No step failed: stepErrors is empty.
+    assert.deepEqual(out.stepErrors, {});
+  });
+
+  it('mergeAll captures a top-level config failure in stepErrors WITHOUT aborting the jobs/soul steps', () => {
+    // Invalid common config (a YAML list) + a broken worker cron custom
+    // source (invalid JSON). Regression target: before the step-isolation
+    // fix the mergeConfig throw aborted mergeAll, so the jobs/soul arrays
+    // were empty and the broken worker jobs file stayed invisible.
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(path.join(workerCron, 'jobs.custom.json'), '{ not valid json');
+
+    const out = mergeAll({ rootDir: tmpDir, logger: () => {} });
+    // The config step failure is captured (not thrown)...
+    assert.match(out.stepErrors.config ?? '', /Common config must be a YAML object/);
+    // ...and the other steps still ran: the broken worker jobs file shows
+    // up as a per-profile error entry instead of an empty array.
+    assert.equal(out.jobs.length, 1);
+    assert.equal(out.jobs[0].profile, 'worker');
+    assert.equal(out.jobs[0].status, 'error');
+    assert.match(out.jobs[0].error ?? '', /not valid JSON/);
+    assert.equal(out.soul.length, 1);
+    assert.equal(out.soul[0].status, 'skipped');
+    assert.equal(out.stepErrors.jobs, undefined);
+    assert.equal(out.stepErrors.soul, undefined);
+    assert.equal(out.config.length, 0);
+  });
+
+  it('syncAll reports a top-level config error AND still records jobs/soul per-profile failures', () => {
+    // Same broken workspace as above, through syncAll: the top-level step
+    // error must be present AND the per-profile jobs/soul failures must
+    // still be executed and recorded (today, before the fix, the jobs/soul
+    // arrays are empty).
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(path.join(workerCron, 'jobs.custom.json'), '{ not valid json');
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config must be a YAML object/);
+    const workerJobs = result.jobs.find((r) => r.profile === 'worker');
+    assert.equal(workerJobs?.status, 'error');
+    assert.match(workerJobs?.error ?? '', /not valid JSON/);
+    const workerSoul = result.soul.find((r) => r.profile === 'worker');
+    assert.equal(workerSoul?.status, 'skipped');
+    // Backward-compat: the deprecated single-field carrier still surfaces
+    // the step failure for the public SyncAllResult API.
+    assert.match(result.syncError ?? '', /Common config must be a YAML object/);
+  });
+
+  it('syncAll captures BOTH top-level step errors when common config.yaml and SOUL.md are both missing', () => {
+    // Only the skills/plugins source dirs exist: the common config.yaml and
+    // SOUL.md sources are absent, so BOTH the config and the soul step hit
+    // their pre-profile preconditions. Regression target: before the fix
+    // only whichever step threw first was visible in syncError; now every
+    // failing step gets its own slot and the jobs step still runs.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(path.join(commonDir, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(commonDir, 'plugins'), { recursive: true });
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config not found/);
+    assert.match(result.stepErrors.soul ?? '', /Common SOUL file not found/);
+    // The jobs step (no top-level precondition, no custom sources anywhere)
+    // still ran and recorded its per-profile no-op instead of being
+    // aborted behind the first failure.
+    assert.equal(result.jobs.length, 1);
+    assert.equal(result.jobs[0].profile, 'worker');
+    assert.equal(result.jobs[0].status, 'skipped');
+    assert.equal(result.stepErrors.jobs, undefined);
+    // Backward-compat carrier: both messages, in step order.
+    assert.match(result.syncError ?? '', /Common config not found/);
+    assert.match(result.syncError ?? '', /Common SOUL file not found/);
+  });
+
+  it('a broken config step does not prevent the jobs step from recording successful per-profile merges', () => {
+    // Broken common config, but a VALID worker cron custom source. The jobs
+    // step must still merge and write its output even though the config
+    // step failed top-level.
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(
+      path.join(workerCron, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1', name: 'ok_job' }] }) + '\n'
+    );
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config must be a YAML object/);
+    const workerJobs = result.jobs.find((r) => r.profile === 'worker');
+    assert.equal(workerJobs?.status, 'merged');
+    // The jobs output was actually written.
+    const jobsOutput = path.join(workerCron, 'jobs.json');
+    assert.ok(fs.existsSync(jobsOutput));
+    assert.equal(JSON.parse(fs.readFileSync(jobsOutput, 'utf8')).jobs.length, 1);
   });
 
   it('preserves per-profile skipped/error entries and dryRun in the aggregate', () => {
@@ -462,6 +573,81 @@ describe('standalone merge sub-commands still surface "no custom found"', () => 
       mergeSoul({ rootDir: tmpDir, profiles: [], logger: () => {} })
         .map((r) => ({ profile: r.profile, status: r.status })),
       [{ profile: 'worker', status: 'skipped' }]
+    );
+  });
+});
+
+describe('explicit -p scoping suppresses the global hermes plugins write in linkAll / syncAll', () => {
+  let tmpDir: string;
+  let hermesDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-sync-scope-'));
+    hermesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-hermes-scope-'));
+    scaffoldCommon(tmpDir);
+    // A real common plugin so the global-link half has something to link
+    // (scaffoldCommon's empty plugins dir would make the step a no-op).
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin', 'index.py'),
+      '# plugin'
+    );
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(hermesDir, { recursive: true, force: true });
+  });
+
+  it('linkAll with explicit profiles does NOT write into the global hermes plugins dir', () => {
+    // SCOPE GATE REGRESSION: linkAll reaches linkPlugins with the same
+    // options, so `hpm link -p worker` used to create <hermesDir>/plugins/*
+    // unconditionally. It must now skip the global half while still
+    // linking the named profile.
+    const out = linkAll({ rootDir: tmpDir, hermesDir, profiles: ['worker'], logger: () => {} });
+
+    // The named profile still got its plugin link.
+    const workerLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerLink), 'explicitly targeted profile still linked');
+    assert.ok(fs.lstatSync(workerLink).isSymbolicLink());
+
+    // No write into the global hermes dir, and no hermes-plugin results.
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'global hermes plugins dir untouched');
+    assert.equal(out.plugins.filter((r) => r.type === 'hermes-plugin').length, 0);
+    assert.deepEqual(out.linkErrors, []);
+  });
+
+  it('syncAll with explicit profiles does NOT write into the global hermes plugins dir', () => {
+    // The aggregate path (hpm sync -p worker / hpm merge-all -p worker)
+    // must honor the same scope gate end to end.
+    const result = syncAll({ rootDir: tmpDir, hermesDir, profiles: ['worker'], logger: () => {} });
+
+    const workerLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerLink), 'explicitly targeted profile still linked');
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'global hermes plugins dir untouched');
+    assert.equal(result.plugins.filter((r) => r.type === 'hermes-plugin').length, 0);
+    // The merge half behaves as a per-profile no-op for the explicit target
+    // (worker has no custom sources) — no top-level throw, no link errors.
+    assert.equal(result.syncError, undefined);
+    assert.deepEqual(result.linkErrors, []);
+  });
+
+  it('syncAll with NO explicit profiles still links the global hermes plugins dir (default behavior unchanged)', () => {
+    // Regression guard: the default (untargeted) run keeps the historical
+    // global-link behavior — this run must NOT be weakened by the gate.
+    const result = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+
+    const hermesLink = path.join(hermesDir, 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(hermesLink), 'default run still links the global hermes plugins dir');
+    assert.ok(fs.lstatSync(hermesLink).isSymbolicLink());
+    assert.equal(
+      fs.readlinkSync(hermesLink),
+      path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin')
+    );
+    assert.ok(
+      result.plugins.some((r) => r.type === 'hermes-plugin'),
+      'hermes-plugin results still reported on the default run'
     );
   });
 });

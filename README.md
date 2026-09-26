@@ -51,7 +51,7 @@ profiles/
 │   ├── config.yaml          # Base configurations
 │   ├── SOUL.md              # Shared system prompt / instructions
 │   ├── skills/              # Shared skills
-│   └── plugins/             # Shared plugins (also linked to ~/.hermes/plugins)
+│   └── plugins/             # Shared plugins (also linked to ~/.hermes/plugins on default runs)
 ├── orchestrator/
 │   ├── config.custom.yaml   # Profile-specific config overrides
 │   ├── SOUL.custom.md       # Profile-specific prompt (prepended to common SOUL)
@@ -108,9 +108,17 @@ hpm merge soul      # Prepends SOUL.custom.md to common/SOUL.md
 
 # Link specific resources
 hpm link skills     # Symlinks common skills into profile directories
-hpm link plugins    # Symlinks common plugins into profile dirs & ~/.hermes/plugins
+hpm link plugins    # Symlinks common plugins into profile dirs (and, on default runs, ~/.hermes/plugins)
 hpm link hermes     # Symlinks repo profiles/ directory to ~/.hermes/profiles
 ```
+
+### Global Hermes Home Writes (`~/.hermes`)
+
+The link steps write into the global Hermes home directory (default `~/.hermes`, or `--hermes-dir` / `$HERMES_HOME`):
+
+- **Untargeted (default) runs** link common plugins into `~/.hermes/plugins`, and `hpm link hermes` / `hpm sync --include-hermes-link` link the repo `profiles/` directory to `~/.hermes/profiles`.
+- **Explicitly scoped runs** (`-p <profiles...>`) scope the run to the named profiles only and do **not** write into the global Hermes home directory — including `~/.hermes/plugins` for `hpm link plugins`, `hpm link`, `hpm link all`, `hpm sync`, and `hpm merge-all`. `-p/--profiles` is a scope gate everywhere: when you name profiles, only those profiles are touched.
+
 
 ### Direct Make-compatible Aliases
 
@@ -132,7 +140,7 @@ hpm merge-all
 | :--- | :--- | :--- |
 | `-r, --root <path>` | Path to repository root | Auto-detected from cwd |
 | `--hermes-dir <path>` | Path to Hermes home directory | `~/.hermes` or `$HERMES_HOME` |
-| `-p, --profiles <names...>` | Target specific profile names only | All profiles |
+| `-p, --profiles <names...>` | Target specific profile names only. Also skips all global Hermes home writes (e.g. `~/.hermes/plugins` linking) | All profiles (untargeted runs write to `~/.hermes/plugins`) |
 | `-d, --dry-run` | Preview actions without modifying disk | `false` |
 | `-q, --quiet` | Suppress normal logging | `false` |
 | `-v, --version` | Display package version | |
@@ -176,7 +184,7 @@ console.log(result);
 - `mergeJobsDocuments(baseDoc, customDoc)`: Pure job-merge primitive (the core logic behind `mergeJobs`). Merges base and custom job documents: jobs with matching `id` are merged (custom properties override base), custom-only jobs are appended, and base job order is preserved. Idempotent for id-less jobs — they are deduplicated by deep content equality, so feeding a previous run's output back in as the base never grows the jobs list.
 - `mergeSoul(options)`: Concatenates profile prompt before shared prompt.
 - `linkSkills(options)`: Creates relative symlinks to common skills.
-- `linkPlugins(options)`: Creates relative and absolute symlinks to common plugins.
+- `linkPlugins(options)`: Creates relative symlinks to common plugins; on default (untargeted) runs also links them to `~/.hermes/plugins`. With an explicit non-empty `profiles` list, only the named profiles are linked and the global `~/.hermes/plugins` write is skipped.
 - `linkHermes(options)`: Symlinks workspace profiles to `~/.hermes/profiles`.
 - `findProjectRoot(startDir)`: Locates the nearest directory containing `profiles/common`.
 - `deepMerge(base, override)`: Pure utility for recursive object merging.

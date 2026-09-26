@@ -155,6 +155,46 @@ timeout: 60
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
   });
 
+  it('rejects the reserved profile name "common" BEFORE any read of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeConfig -p
+    // common` would read profiles/common/config.yaml and write the merge BACK
+    // onto itself (self-merge, non-convergent). The reserved name must be
+    // rejected during the up-front profile validation loop — which runs
+    // BEFORE any read of the base source — with the dedicated reserved
+    // message (not the generic path-safety one).
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      }
+    );
+    // No workspace was created or modified at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+  });
+
+  it('still accepts "common-worker" as a target profile name (exact-match reservation)', () => {
+    // Set up the shared base and a real per-profile custom source for a
+    // profile whose name merely contains "common" — it must NOT be rejected.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    const profileDir = path.join(tmpDir, 'profiles', 'common-worker');
+    fs.mkdirSync(profileDir, { recursive: true });
+    fs.writeFileSync(path.join(profileDir, 'config.custom.yaml'), `name: common-worker\n`);
+
+    const results = mergeConfig({ rootDir: tmpDir, profiles: ['common-worker'], logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'common-worker');
+    assert.equal(results[0].status, 'merged');
+    assert.ok(fs.existsSync(path.join(profileDir, 'config.yaml')));
+    // The shared base config is untouched (not self-merged).
+    assert.equal(fs.readFileSync(path.join(commonDir, 'config.yaml'), 'utf8'), `model: "base"\n`);
+  });
+
   it('returns a per-profile error entry (no top-level throw) when a DISCOVERED profile has an invalid config.custom.yaml', () => {
     // REGRESSION (divergence from mergeJobs/mergeSoul): the trailing
     // "nothing to merge" gate used to count only `status: 'merged'` entries,
