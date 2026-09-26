@@ -576,3 +576,78 @@ describe('standalone merge sub-commands still surface "no custom found"', () => 
     );
   });
 });
+
+describe('explicit -p scoping suppresses the global hermes plugins write in linkAll / syncAll', () => {
+  let tmpDir: string;
+  let hermesDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-sync-scope-'));
+    hermesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-hermes-scope-'));
+    scaffoldCommon(tmpDir);
+    // A real common plugin so the global-link half has something to link
+    // (scaffoldCommon's empty plugins dir would make the step a no-op).
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin', 'index.py'),
+      '# plugin'
+    );
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(hermesDir, { recursive: true, force: true });
+  });
+
+  it('linkAll with explicit profiles does NOT write into the global hermes plugins dir', () => {
+    // SCOPE GATE REGRESSION: linkAll reaches linkPlugins with the same
+    // options, so `hpm link -p worker` used to create <hermesDir>/plugins/*
+    // unconditionally. It must now skip the global half while still
+    // linking the named profile.
+    const out = linkAll({ rootDir: tmpDir, hermesDir, profiles: ['worker'], logger: () => {} });
+
+    // The named profile still got its plugin link.
+    const workerLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerLink), 'explicitly targeted profile still linked');
+    assert.ok(fs.lstatSync(workerLink).isSymbolicLink());
+
+    // No write into the global hermes dir, and no hermes-plugin results.
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'global hermes plugins dir untouched');
+    assert.equal(out.plugins.filter((r) => r.type === 'hermes-plugin').length, 0);
+    assert.deepEqual(out.linkErrors, []);
+  });
+
+  it('syncAll with explicit profiles does NOT write into the global hermes plugins dir', () => {
+    // The aggregate path (hpm sync -p worker / hpm merge-all -p worker)
+    // must honor the same scope gate end to end.
+    const result = syncAll({ rootDir: tmpDir, hermesDir, profiles: ['worker'], logger: () => {} });
+
+    const workerLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerLink), 'explicitly targeted profile still linked');
+    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'global hermes plugins dir untouched');
+    assert.equal(result.plugins.filter((r) => r.type === 'hermes-plugin').length, 0);
+    // The merge half behaves as a per-profile no-op for the explicit target
+    // (worker has no custom sources) — no top-level throw, no link errors.
+    assert.equal(result.syncError, undefined);
+    assert.deepEqual(result.linkErrors, []);
+  });
+
+  it('syncAll with NO explicit profiles still links the global hermes plugins dir (default behavior unchanged)', () => {
+    // Regression guard: the default (untargeted) run keeps the historical
+    // global-link behavior — this run must NOT be weakened by the gate.
+    const result = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+
+    const hermesLink = path.join(hermesDir, 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(hermesLink), 'default run still links the global hermes plugins dir');
+    assert.ok(fs.lstatSync(hermesLink).isSymbolicLink());
+    assert.equal(
+      fs.readlinkSync(hermesLink),
+      path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin')
+    );
+    assert.ok(
+      result.plugins.some((r) => r.type === 'hermes-plugin'),
+      'hermes-plugin results still reported on the default run'
+    );
+  });
+});

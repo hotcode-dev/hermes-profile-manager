@@ -271,6 +271,20 @@ function safeLink(banner: string, operation: () => void): void {
   }
 }
 
+/**
+ * Builds the `link plugins` success banner. The default wording claims a
+ * write to ~/.hermes/plugins — but that half of the operation only runs on
+ * an UNTARGETED run (see the -p scope gate in core/links.ts). When the
+ * caller explicitly targeted profiles, the banner must not claim a global
+ * write that did not happen (same honest-wording contract as dryRunBanner).
+ */
+function pluginsLinkBanner(): string {
+  const profiles = program.opts().profiles as string[] | undefined;
+  return profiles && profiles.length > 0
+    ? 'Linked common plugins to the targeted profile(s) only'
+    : 'Linked common plugins to all profiles and ~/.hermes/plugins';
+}
+
 // Command: init
 program
   .command('init [targetDir]')
@@ -434,7 +448,7 @@ program
         safeLink('Linked common skills to all profiles', () => linkSkills(opts));
         break;
       case 'plugins':
-        safeLink('Linked common plugins to all profiles and ~/.hermes/plugins', () => linkPlugins(opts));
+        safeLink(pluginsLinkBanner(), () => linkPlugins(opts));
         break;
       case 'hermes':
         safeLink('Linked Hermes profiles to the Hermes home directory', () => linkHermes(opts));
@@ -478,7 +492,7 @@ program
   .command('plugins-link')
   .description('Alias for "link plugins"')
   .action((cmdOpts) => {
-    safeLink('Linked common plugins to all profiles and ~/.hermes/plugins', () => linkPlugins(getOptions(cmdOpts)));
+    safeLink(pluginsLinkBanner(), () => linkPlugins(getOptions(cmdOpts)));
   });
 
 program
