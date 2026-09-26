@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ensureSymlinkSync, pruneStaleSymlinks } from '../utils/fs-helpers.js';
-import { assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import { assertProfilePathInWorkspace, assertPathInBase } from '../utils/profile-name.js';
 import { validateExplicitProfiles, resolveTargetProfiles } from '../utils/profile-targets.js';
 
 export interface LinkOptions {
@@ -88,9 +88,18 @@ export function linkSkills(options: LinkOptions = {}): LinkResult[] {
 }
 
 /**
- * Links common plugins to all profiles and to ~/.hermes/plugins:
+ * Links common plugins to all profiles and (only on a default, untargeted
+ * run) to ~/.hermes/plugins:
  * 1. profiles/common/plugins/<plugin> -> profiles/<profile>/plugins/<plugin> (relative)
  * 2. profiles/common/plugins/<plugin> -> ~/.hermes/plugins/<plugin> (absolute)
+ *
+ * Step 2 is gated on the ABSENCE of an explicit non-empty `profiles` target
+ * list, mirroring the `!options.profiles` exemption pattern the merge steps
+ * (mergeConfig/mergeJobs/mergeSoul) use: `-p/--profiles` is a scope gate, so
+ * a user who explicitly names profiles has scoped the run to those profiles
+ * and must not get a machine-wide write into their global Hermes home
+ * directory. A default run (no explicit `profiles`) keeps the historical
+ * behavior and links the global plugins dir as before.
  */
 export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
   const rootDir = options.rootDir || process.cwd();
@@ -153,30 +162,44 @@ export function linkPlugins(options: LinkOptions = {}): LinkResult[] {
     }
   }
 
-  // 2. Link to ~/.hermes/plugins (prune dangling symlinks there first; the
-  // dir may legitimately be absent, in which case pruning is a no-op).
-  const hermesPluginsDir = path.join(hermesDir, 'plugins');
-  pruneStaleSymlinks(hermesPluginsDir, Boolean(options.dryRun), log);
-  for (const pluginName of pluginEntries) {
-    const pluginSource = path.join(commonPluginsDir, pluginName);
-    const linkPath = path.join(hermesPluginsDir, pluginName);
+  // 2. Link to ~/.hermes/plugins — ONLY when the run is NOT explicitly
+  // scoped with a non-empty `profiles` list. The global plugins dir is a
+  // machine-wide side effect outside the workspace, so it must not fire for
+  // a scoped `-p/--profiles` run the user did not ask for it (the established
+  // `-p` scoping contract; same exemption shape as the merge steps).
+  const explicitlyTargeted = options.profiles && options.profiles.length > 0;
+  if (!explicitlyTargeted) {
+    const hermesPluginsDir = path.join(hermesDir, 'plugins');
+    // Defense in depth: the plugins dir we write must stay strictly under
+    // the hermes home dir (mirrors the profile-side boundary check).
+    assertPathInBase(hermesDir, hermesPluginsDir);
+    // Prune dangling symlinks left behind by deleted/renamed common plugins
+    // first (the dir may legitimately be absent, in which case pruning is a
+    // no-op). Runs only on the untargeted path: a scoped run must not touch
+    // the global dir at all.
+    pruneStaleSymlinks(hermesPluginsDir, Boolean(options.dryRun), log);
 
-    if (!options.dryRun) {
-      ensureSymlinkSync(pluginSource, linkPath, { logger: log });
+    for (const pluginName of pluginEntries) {
+      const pluginSource = path.join(commonPluginsDir, pluginName);
+      const linkPath = path.join(hermesPluginsDir, pluginName);
+
+      if (!options.dryRun) {
+        ensureSymlinkSync(pluginSource, linkPath, { logger: log });
+      }
+
+      // Under --dry-run the symlink was not created, so phrase the line as a
+      // preview rather than asserting a side effect that did not happen.
+      log(
+        options.dryRun
+          ? `Would link ${pluginName} to ${hermesPluginsDir}`
+          : `Linked ${pluginName} to ${hermesPluginsDir}`
+      );
+      results.push({
+        source: pluginSource,
+        destination: linkPath,
+        type: 'hermes-plugin'
+      });
     }
-
-    // Under --dry-run the symlink was not created, so phrase the line as a
-    // preview rather than asserting a side effect that did not happen.
-    log(
-      options.dryRun
-        ? `Would link ${pluginName} to ${hermesPluginsDir}`
-        : `Linked ${pluginName} to ${hermesPluginsDir}`
-    );
-    results.push({
-      source: pluginSource,
-      destination: linkPath,
-      type: 'hermes-plugin'
-    });
   }
 
   return results;
@@ -193,6 +216,9 @@ export function linkHermes(options: LinkOptions = {}): LinkResult {
 
   const profilesSrc = path.join(rootDir, 'profiles');
   const hermesProfilesDest = path.join(hermesDir, 'profiles');
+  // Defense in depth: the destination must stay strictly under the hermes
+  // home dir (mirrors the profile-side boundary check and the plugins link).
+  assertPathInBase(hermesDir, hermesProfilesDest);
 
   if (!fs.existsSync(profilesSrc)) {
     throw new Error(`Profiles source directory not found: ${profilesSrc}`);
