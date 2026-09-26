@@ -131,6 +131,117 @@ describe('syncAll / mergeAll aggregate behavior', () => {
     assert.equal(out.jobs[0].status, 'skipped');
     assert.equal(out.soul.length, 1);
     assert.equal(out.soul[0].status, 'skipped');
+    // No step failed: stepErrors is empty.
+    assert.deepEqual(out.stepErrors, {});
+  });
+
+  it('mergeAll captures a top-level config failure in stepErrors WITHOUT aborting the jobs/soul steps', () => {
+    // Invalid common config (a YAML list) + a broken worker cron custom
+    // source (invalid JSON). Regression target: before the step-isolation
+    // fix the mergeConfig throw aborted mergeAll, so the jobs/soul arrays
+    // were empty and the broken worker jobs file stayed invisible.
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(path.join(workerCron, 'jobs.custom.json'), '{ not valid json');
+
+    const out = mergeAll({ rootDir: tmpDir, logger: () => {} });
+    // The config step failure is captured (not thrown)...
+    assert.match(out.stepErrors.config ?? '', /Common config must be a YAML object/);
+    // ...and the other steps still ran: the broken worker jobs file shows
+    // up as a per-profile error entry instead of an empty array.
+    assert.equal(out.jobs.length, 1);
+    assert.equal(out.jobs[0].profile, 'worker');
+    assert.equal(out.jobs[0].status, 'error');
+    assert.match(out.jobs[0].error ?? '', /not valid JSON/);
+    assert.equal(out.soul.length, 1);
+    assert.equal(out.soul[0].status, 'skipped');
+    assert.equal(out.stepErrors.jobs, undefined);
+    assert.equal(out.stepErrors.soul, undefined);
+    assert.equal(out.config.length, 0);
+  });
+
+  it('syncAll reports a top-level config error AND still records jobs/soul per-profile failures', () => {
+    // Same broken workspace as above, through syncAll: the top-level step
+    // error must be present AND the per-profile jobs/soul failures must
+    // still be executed and recorded (today, before the fix, the jobs/soul
+    // arrays are empty).
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(path.join(workerCron, 'jobs.custom.json'), '{ not valid json');
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config must be a YAML object/);
+    const workerJobs = result.jobs.find((r) => r.profile === 'worker');
+    assert.equal(workerJobs?.status, 'error');
+    assert.match(workerJobs?.error ?? '', /not valid JSON/);
+    const workerSoul = result.soul.find((r) => r.profile === 'worker');
+    assert.equal(workerSoul?.status, 'skipped');
+    // Backward-compat: the deprecated single-field carrier still surfaces
+    // the step failure for the public SyncAllResult API.
+    assert.match(result.syncError ?? '', /Common config must be a YAML object/);
+  });
+
+  it('syncAll captures BOTH top-level step errors when common config.yaml and SOUL.md are both missing', () => {
+    // Only the skills/plugins source dirs exist: the common config.yaml and
+    // SOUL.md sources are absent, so BOTH the config and the soul step hit
+    // their pre-profile preconditions. Regression target: before the fix
+    // only whichever step threw first was visible in syncError; now every
+    // failing step gets its own slot and the jobs step still runs.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(path.join(commonDir, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(commonDir, 'plugins'), { recursive: true });
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config not found/);
+    assert.match(result.stepErrors.soul ?? '', /Common SOUL file not found/);
+    // The jobs step (no top-level precondition, no custom sources anywhere)
+    // still ran and recorded its per-profile no-op instead of being
+    // aborted behind the first failure.
+    assert.equal(result.jobs.length, 1);
+    assert.equal(result.jobs[0].profile, 'worker');
+    assert.equal(result.jobs[0].status, 'skipped');
+    assert.equal(result.stepErrors.jobs, undefined);
+    // Backward-compat carrier: both messages, in step order.
+    assert.match(result.syncError ?? '', /Common config not found/);
+    assert.match(result.syncError ?? '', /Common SOUL file not found/);
+  });
+
+  it('a broken config step does not prevent the jobs step from recording successful per-profile merges', () => {
+    // Broken common config, but a VALID worker cron custom source. The jobs
+    // step must still merge and write its output even though the config
+    // step failed top-level.
+    scaffoldCommon(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(
+      path.join(workerCron, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1', name: 'ok_job' }] }) + '\n'
+    );
+
+    const result: SyncAllResult = syncAll({ rootDir: tmpDir, hermesDir, logger: () => {} });
+    assert.match(result.stepErrors.config ?? '', /Common config must be a YAML object/);
+    const workerJobs = result.jobs.find((r) => r.profile === 'worker');
+    assert.equal(workerJobs?.status, 'merged');
+    // The jobs output was actually written.
+    const jobsOutput = path.join(workerCron, 'jobs.json');
+    assert.ok(fs.existsSync(jobsOutput));
+    assert.equal(JSON.parse(fs.readFileSync(jobsOutput, 'utf8')).jobs.length, 1);
   });
 
   it('preserves per-profile skipped/error entries and dryRun in the aggregate', () => {
