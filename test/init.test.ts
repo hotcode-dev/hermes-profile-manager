@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { parse as parseYaml } from 'yaml';
-import { initWorkspace } from '../src/core/init.js';
+import { initWorkspace, InitFilesystemError } from '../src/core/init.js';
 
 describe('initWorkspace', () => {
   let tmpDir: string;
@@ -81,6 +81,110 @@ describe('initWorkspace', () => {
     });
 
     assert.equal(thirdResult.createdFiles.length, 5);
+  });
+
+  it('throws InitFilesystemError naming the offending path when profiles/common is a regular file (EEXIST)', () => {
+    // A pre-existing collision — e.g. a stray artifact or a symlink that
+    // resolves to a file where the 'common' DIRECTORY belongs — used to
+    // escape initWorkspace as a RAW `EEXIST ... mkdir '.../profiles/common'`
+    // with no context about which path failed, and the CLI mislabeled it as
+    // an "invalid profile name". Now it must throw a typed
+    // InitFilesystemError that identifies the failing file.
+    fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'profiles', 'common'), 'not a directory\n');
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        force: true,
+        runSync: false,
+        logger: () => {}
+      });
+      assert.fail('expected initWorkspace to throw on the profiles/common collision');
+    } catch (err) {
+      assert.ok(
+        err instanceof InitFilesystemError,
+        `expected InitFilesystemError, got ${err}`
+      );
+      // The message identifies the FAILING FILE, not a bare errno and not a
+      // profile-name complaint.
+      assert.match((err as Error).message, /Failed to mkdir profiles\/common/);
+      assert.ok(
+        !/Invalid profile name/.test((err as Error).message),
+        `a filesystem collision must not be reported as a name error:\n${err}`
+      );
+    }
+  });
+
+  it('throws InitFilesystemError (not a silent skip) when a scaffolding file path is a directory (EISDIR)', () => {
+    // A directory where a scaffolding FILE belongs is not a legitimate
+    // "existing file": the pre-fix behavior silently counted it as skipped
+    // (createdFiles=4 skipped=1) because existsSync passed and the write
+    // failure only surfaced as a raw EISDIR. It must instead throw naming
+    // the offending path.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), { recursive: true });
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        runSync: false,
+        logger: () => {}
+      });
+      assert.fail('expected initWorkspace to throw on the config.yaml-is-a-directory collision');
+    } catch (err) {
+      assert.ok(
+        err instanceof InitFilesystemError,
+        `expected InitFilesystemError, got ${err}`
+      );
+      assert.match((err as Error).message, /Failed to writeFile profiles\/common\/config\.yaml/);
+      assert.match((err as Error).message, /EISDIR/);
+    }
+  });
+
+  it('throws InitFilesystemError (EACCES) when a scaffolding parent directory is not writable', () => {
+    // A read-only parent directory makes the scaffolding mkdir fail with
+    // EACCES. (Skipped when running as root: root bypasses DAC permission
+    // checks, so the errno cannot be reproduced hermetically.)
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common'), { recursive: true });
+    const target = path.join(tmpDir, 'profiles', 'common', 'config.yaml');
+    fs.chmodSync(path.dirname(target), 0o555);
+    // Root cannot reproduce EACCES this way.
+    if (process.getuid && process.getuid() === 0) {
+      fs.chmodSync(path.dirname(target), 0o755);
+      // eslint-disable-next-line no-console
+      console.log('skipping EACCES case: running as root');
+      return;
+    }
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        runSync: false,
+        logger: () => {}
+      });
+      assert.fail('expected initWorkspace to throw on the EACCES collision');
+    } catch (err) {
+      assert.ok(
+        err instanceof InitFilesystemError,
+        `expected InitFilesystemError, got ${err}`
+      );
+      assert.match((err as Error).message, /EACCES/);
+      assert.match((err as Error).message, /Failed to (mkdir|writeFile) profiles\/common/);
+    } finally {
+      fs.chmodSync(path.dirname(target), 0o755);
+    }
+  });
+
+  it('still skips a LEGITIMATE pre-existing regular file (no false positive from the errno wrapping)', () => {
+    // The EEXIST/EISDIR wrapping must not break the documented no-force
+    // skip behavior for real existing files.
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', runSync: false, logger: () => {} });
+    const result = initWorkspace({ targetDir: tmpDir, profileName: 'main', runSync: false, logger: () => {} });
+    assert.equal(result.createdFiles.length, 0);
+    assert.equal(result.skippedFiles.length, 5);
   });
 
   it('completes auto-sync without a warning when no profile has cron/jobs.custom.json', () => {

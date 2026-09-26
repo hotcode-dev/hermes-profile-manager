@@ -633,6 +633,48 @@ describe('CLI init exit status reflects initial-sync failures', () => {
       'the rejected init must not create the workspace profiles/ tree'
     );
   });
+
+  it('init on a profiles/common file collision exits 1 with the REAL filesystem error, NOT "invalid profile name"', () => {
+    // Regression: with profiles/common a regular file, non-dry-run init used
+    // to throw a raw EEXIST from mkdir, and the CLI's init catch block
+    // hard-coded "Failed: invalid profile name." for EVERY throw — telling a
+    // user with a filesystem collision to fix their profile name. The real
+    // errno (with the offending path) must be surfaced, with a generic
+    // initialization-failure summary instead of the name guidance.
+    fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'profiles', 'common'), 'not a directory\n');
+
+    const r = runCli(['init'], { cwd: tmpDir });
+    assertFailingInit(r, 'init fs-collision');
+    // The offending path is named...
+    assert.match(r.stderr, /profiles\/common/);
+    // ...together with the filesystem errno...
+    assert.match(r.stderr, /EEXIST/);
+    // ...and the summary must NOT be the profile-name guidance.
+    assert.ok(
+      !/Failed: invalid profile name/i.test(r.stderr),
+      `a filesystem collision must not be misreported as an invalid profile name:\n${r.stderr}`
+    );
+    assert.match(r.stderr, /Failed: initialization failed/);
+  });
+
+  it('init on a scaffolding-file-as-directory collision exits 1 with the real errno (EISDIR) and no name guidance', () => {
+    // A directory where a scaffolding file belongs used to be silently
+    // counted as "skipped (already existed)" or, on --force, a raw EISDIR
+    // labeled "invalid profile name". It must surface as a filesystem error
+    // naming the file.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), { recursive: true });
+
+    const r = runCli(['init', '--force'], { cwd: tmpDir });
+    assertFailingInit(r, 'init fs-eisdir');
+    assert.match(r.stderr, /profiles\/common\/config\.yaml/);
+    assert.match(r.stderr, /EISDIR/);
+    assert.ok(
+      !/Failed: invalid profile name/i.test(r.stderr),
+      `a directory collision must not be misreported as an invalid profile name:\n${r.stderr}`
+    );
+    assert.match(r.stderr, /Failed: initialization failed/);
+  });
 });
 
 describe('CLI sync/all/merge-all exit status reflects top-level sync failures', () => {
