@@ -167,11 +167,13 @@ console.log(result);
 
 ### Exported Functions
 
-- `syncAll(options)`: Runs `mergeAll` and `linkAll`.
+- `initWorkspace(options)`: Scaffolds a new profile workspace (`profiles/common/{config.yaml,SOUL.md,skills/,plugins/}` and `profiles/<profileName>/{config.custom.yaml,SOUL.custom.md,cron/jobs.custom.json}`) and optionally runs an initial sync. This is the programmatic counterpart of `hpm init`. Key options: `targetDir` (default `process.cwd()`), `profileName` (default `"main"`), `force` (overwrite existing files), `runSync` (default `true`; skipped automatically under `dryRun`), `dryRun` (no filesystem side effects), `logger`. Returns `{ targetDir, profileName, createdFiles, skippedFiles, syncResult? }`.
+- `syncAll(options)`: Runs `mergeAll` and `linkAll`. Returns a result object you can inspect for failures: `config` / `jobs` / `soul` (per-profile merge results with `status: 'merged' | 'skipped' | 'error'`), `skills` / `plugins` (per-profile link results), `hermesLink?`, `linkErrors: string[]` (captured link-step failures — empty when all links succeeded), and `syncError?: string` (a top-level merge precondition failure, e.g. missing `profiles/common/config.yaml`). `syncAll` never throws; gate success on `syncError` and the per-profile error entries.
 - `mergeAll(options)`: Runs `mergeConfig`, `mergeJobs`, and `mergeSoul`.
 - `linkAll(options)`: Runs `linkSkills` and `linkPlugins` (and optionally `linkHermes`).
 - `mergeConfig(options)`: Deep merges YAML configs using YAML object override logic.
 - `mergeJobs(options)`: Merges JSON cron jobs by matching job ID and appending new ones.
+- `mergeJobsDocuments(baseDoc, customDoc)`: Pure job-merge primitive (the core logic behind `mergeJobs`). Merges base and custom job documents: jobs with matching `id` are merged (custom properties override base), custom-only jobs are appended, and base job order is preserved. Idempotent for id-less jobs — they are deduplicated by deep content equality, so feeding a previous run's output back in as the base never grows the jobs list.
 - `mergeSoul(options)`: Concatenates profile prompt before shared prompt.
 - `linkSkills(options)`: Creates relative symlinks to common skills.
 - `linkPlugins(options)`: Creates relative and absolute symlinks to common plugins.
