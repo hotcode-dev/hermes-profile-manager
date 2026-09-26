@@ -744,6 +744,71 @@ describe('CLI sync/all/merge-all exit status reflects top-level sync failures', 
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
+
+  it('sync reports EVERY failing step and per-profile failure in one pass (step isolation)', () => {
+    // Regression target: before the step-isolation fix the FIRST top-level
+    // failure (the soul step here, since config is valid) aborted the rest
+    // of the merge aggregate, so the per-profile errors below were
+    // invisible. Now the run surfaces them all: the soul step error, the
+    // per-profile config error, and the per-profile jobs error.
+    scaffoldWorkspace(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+    fs.mkdirSync(path.join(badDir, 'cron'), { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'cron', 'jobs.custom.json'), '{ not valid json');
+
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // The top-level soul-step failure...
+    assert.match(r.stderr, /Common SOUL file not found/);
+    // ...AND the per-profile failures the aborted steps used to suppress...
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    assert.match(r.stderr, /bad: Jobs custom file is not valid JSON/);
+    // ...with a Failed: summary counting all of them.
+    assert.match(r.stderr, /Failed: the sync run failed and 2 profile\(s\) had merge errors/);
+  });
+
+  it('merge all reports EVERY failing top-level step in one pass (step isolation)', () => {
+    // Broken common config (a YAML list) + a missing common SOUL.md + a
+    // VALID worker cron custom source. Regression target: before the
+    // step-isolation fix the FIRST top-level failure (the config step)
+    // aborted mergeAll, so the soul step never ran (its failure was
+    // invisible) and the valid worker jobs merge was never performed. Now
+    // both failing steps are reported AND the jobs step still merged its
+    // output.
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`
+    );
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(
+      path.join(workerCron, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1', name: 'ok_job' }] }) + '\n'
+    );
+
+    const r = runCli(['merge', 'all'], { cwd: tmpDir });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // BOTH failing top-level steps are reported (one line each)...
+    assert.match(r.stderr, /Common config must be a YAML object/);
+    assert.match(r.stderr, /Common SOUL file not found/);
+    // ...with a Failed: summary counting both steps.
+    assert.match(r.stderr, /Failed: 2 merge steps failed/);
+    // ...and the jobs step STILL RAN despite the config step failing first:
+    // the worker jobs output was actually written.
+    assert.ok(
+      fs.existsSync(path.join(workerCron, 'jobs.json')),
+      'the jobs step must still merge its output even when the config step fails top-level'
+    );
+  });
 });
 
 describe('CLI standalone merge family handles top-level merge preconditions cleanly', () => {

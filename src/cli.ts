@@ -6,7 +6,7 @@ import { mergeConfig } from './core/config.js';
 import { mergeJobs } from './core/jobs.js';
 import { mergeSoul } from './core/soul.js';
 import { linkSkills, linkPlugins, linkHermes } from './core/links.js';
-import { mergeAll, linkAll, syncAll } from './core/sync.js';
+import { mergeAll, linkAll, syncAll, MergeStepErrors } from './core/sync.js';
 import { initWorkspace, InitFilesystemError } from './core/init.js';
 import { collectMergeErrors, MergeStatusResult } from './utils/merge-results.js';
 
@@ -42,24 +42,53 @@ function getOptions(cmd: any) {
 }
 
 /**
- * Reports per-profile merge failures and exits non-zero when any concern
- * produced `status: 'error'` entries.
+ * Reports per-profile merge failures, top-level merge-step failures, and
+ * exits non-zero when any concern produced `status: 'error'` entries or a
+ * merge step failed before reaching its profiles.
  *
  * The core modules catch per-profile errors and record them in the returned
  * arrays instead of throwing, and their own error `log(...)` lines are
  * suppressed under `--quiet`. This is the single place where the CLI turns
  * that information into a visible report and a failing exit code.
  *
+ * `stepErrors` (from `mergeAll`) carries the top-level (pre-profile) failure
+ * of EACH merge step - `mergeAll` wraps every sub-merge in its own
+ * try/catch, so a failure in one step does not suppress the remaining
+ * steps. Each failing step is printed as its own one-line error.
+ *
  * `skipped` entries (no custom source for the profile) are NOT failures - the
  * banner and exit 0 are still produced when only `skipped`/`merged` exist.
  */
-function finishWithErrors(banner: string, ...arrays: MergeStatusResult[][]): void {
+function finishWithErrors(
+  banner: string,
+  arrays: MergeStatusResult[][],
+  stepErrors: MergeStepErrors = {}
+): void {
   const errors = collectMergeErrors(...arrays);
-  if (errors.length > 0) {
+  const stepMessages: string[] = [
+    stepErrors.config,
+    stepErrors.jobs,
+    stepErrors.soul
+  ].filter((message): message is string => message !== undefined);
+  if (errors.length > 0 || stepMessages.length > 0) {
+    for (const message of stepMessages) {
+      console.error(`\u2717 ${message}`);
+    }
     for (const entry of errors) {
       console.error(`\u2717 ${entry.profile}: ${entry.error ?? 'merge failed'}`);
     }
-    console.error(`Failed: ${errors.length} profile(s) had merge errors. Fix the sources above and re-run.`);
+    const parts: string[] = [];
+    if (stepMessages.length > 0) {
+      parts.push(
+        stepMessages.length === 1
+          ? 'the merge run failed'
+          : `${stepMessages.length} merge steps failed`
+      );
+    }
+    if (errors.length > 0) {
+      parts.push(`${errors.length} profile(s) had merge errors`);
+    }
+    console.error(`Failed: ${parts.join(' and ')}. Fix the sources above and re-run.`);
     process.exit(1);
   }
   if (!program.opts().quiet) {
@@ -83,46 +112,62 @@ function dryRunBanner(banner: string): string {
  * mergeSoul) and gives the merge command family the same "never throw,
  * always report cleanly" contract as the sync path.
  *
- * A TOP-LEVEL merge precondition - e.g. `mergeConfig` throwing when
- * `profiles/common/config.yaml` is missing or not a YAML object, `mergeSoul`
- * throwing when `profiles/common/SOUL.md` is absent, or `mergeJobs` /
- * `mergeSoul` throwing when no profile has the custom source - escapes the
- * core function before any per-profile results exist. The operation thunk is
- * wrapped in a try/catch: that thrown error is converted to a single one-line
- * error on stderr, a `Failed:` summary, and a controlled `process.exit(1)` -
- * never a raw stack trace, and with no success banner. This mirrors
- * {@link safeLink} and the `syncAll` / `reportSyncErrors` contract of the
- * sync path.
+ * For `mergeAll` (the `merge all` target) the operation returns the arrays
+ * PLUS the per-step `stepErrors` - `mergeAll` wraps each sub-merge in its
+ * own try/catch, so a top-level failure in one step (e.g. `mergeConfig`
+ * throwing when `profiles/common/config.yaml` is missing or not a YAML
+ * object) does not abort the other steps; every failing step is reported
+ * as its own one-line error, together with any per-profile failures.
+ *
+ * For the single-step commands (merge config / jobs / soul and the Make
+ * aliases), a TOP-LEVEL merge precondition - e.g. `mergeConfig` throwing
+ * when `profiles/common/config.yaml` is missing or not a YAML object,
+ * `mergeSoul` throwing when `profiles/common/SOUL.md` is absent, or
+ * `mergeJobs` / `mergeSoul` throwing when no profile has the custom source -
+ * escapes the core function before any per-profile results exist. The
+ * operation thunk is wrapped in a try/catch: that thrown error is converted
+ * to a single one-line error on stderr, a `Failed: the merge run failed.`
+ * summary, and a controlled `process.exit(1)` - never a raw stack trace,
+ * and with no success banner. This mirrors {@link safeLink} and the
+ * `syncAll` / `reportSyncErrors` contract of the sync path.
  *
  * Per-profile behavior is UNCHANGED: on a clean (non-throwing) run the
  * returned arrays are passed straight to {@link finishWithErrors}, which
  * still inspects only `status: 'error'` entries and prints the banner on
- * success. Only the pre-profile throw is captured here.
+ * success. Only the pre-profile throws are captured here.
  */
-function finishMerge(banner: string, operation: () => MergeStatusResult[][]): void {
+function finishMerge(
+  banner: string,
+  operation: () => { arrays: MergeStatusResult[][]; stepErrors?: MergeStepErrors }
+): void {
   let arrays: MergeStatusResult[][];
+  let stepErrors: MergeStepErrors = {};
   try {
-    arrays = operation();
+    const out = operation();
+    arrays = out.arrays;
+    stepErrors = out.stepErrors ?? {};
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`\u2717 ${message}`);
     console.error('Failed: the merge run failed. Fix the sources above and re-run.');
     process.exit(1);
   }
-  finishWithErrors(banner, ...arrays);
+  finishWithErrors(banner, arrays, stepErrors);
 }
 
 /**
  * Reports an initial-sync failure and exits non-zero. Returns true only
- * when the run was CLEAN (no top-level sync error, no per-profile merge
- * errors, no link failures) so the caller knows it may print its success
- * banner. On failure this function never returns (process.exit(1)).
+ * when the run was CLEAN (no top-level merge-step failure, no per-profile
+ * merge errors, no link failures) so the caller knows it may print its
+ * success banner. On failure this function never returns (process.exit(1)).
  *
  * The three failure classes are reported in the order the run executes
- * them: the top-level `syncError` first (a pre-profile precondition like a
- * broken `profiles/common/config.yaml` aborts the merge step entirely,
- * leaving the per-profile arrays empty), then the per-profile merge
- * errors, then the link-step failures.
+ * them: the top-level merge-step failures first - one line per failing step
+ * from `result.stepErrors` (a pre-profile precondition like a broken
+ * `profiles/common/config.yaml` no longer aborts the other merge steps, so
+ * every failing step and every per-profile failure it used to suppress is
+ * visible here) - then the per-profile merge errors, then the link-step
+ * failures.
  *
  * This is the single shared reporting path behind {@link finishSync} and
  * the `init` command, so the merge-error / link-error / top-level error
@@ -131,12 +176,17 @@ function finishMerge(banner: string, operation: () => MergeStatusResult[][]): vo
 function reportSyncErrors(
   arrays: MergeStatusResult[][],
   linkErrors: string[],
-  syncError?: string
+  stepErrors: MergeStepErrors = {}
 ): boolean {
   const errors = collectMergeErrors(...arrays);
-  if (errors.length > 0 || linkErrors.length > 0 || syncError) {
-    if (syncError) {
-      console.error(`\u2717 ${syncError}`);
+  const stepMessages: string[] = [
+    stepErrors.config,
+    stepErrors.jobs,
+    stepErrors.soul
+  ].filter((message): message is string => message !== undefined);
+  if (errors.length > 0 || linkErrors.length > 0 || stepMessages.length > 0) {
+    for (const message of stepMessages) {
+      console.error(`\u2717 ${message}`);
     }
     for (const entry of errors) {
       console.error(`\u2717 ${entry.profile}: ${entry.error ?? 'merge failed'}`);
@@ -145,7 +195,7 @@ function reportSyncErrors(
       console.error(`\u2717 ${message}`);
     }
     const parts: string[] = [];
-    if (syncError) parts.push('the sync run failed');
+    if (stepMessages.length > 0) parts.push('the sync run failed');
     if (errors.length > 0) parts.push(`${errors.length} profile(s) had merge errors`);
     if (linkErrors.length > 0) parts.push(`${linkErrors.length} link step(s) failed`);
     console.error(`Failed: ${parts.join(' and ')}. Fix the sources above and re-run.`);
@@ -155,8 +205,9 @@ function reportSyncErrors(
 }
 
 /**
- * Reports BOTH per-profile merge failures AND link-step failures (plus an
- * optional top-level sync failure), and exits non-zero when any is present.
+ * Reports BOTH per-profile merge failures AND link-step failures (plus the
+ * per-step top-level merge failures), and exits non-zero when any is
+ * present.
  *
  * This is the aggregate counterpart to {@link finishWithErrors}, used by
  * `sync`, `all`, `merge-all`, and `init` (which run the full aggregate and
@@ -164,7 +215,7 @@ function reportSyncErrors(
  * entries instead of throwing, the link steps capture failures into
  * `result.linkErrors` instead of throwing, and a top-level merge
  * precondition failure (e.g. a missing or non-object
- * `profiles/common/config.yaml`) is captured into `result.syncError`
+ * `profiles/common/config.yaml`) is captured into `result.stepErrors`
  * instead of throwing (see `syncAll` in core/sync.ts). Because nothing
  * throws, the already-computed merge results are ALWAYS reported here - a
  * link or top-level failure can no longer preempt the merge report (the
@@ -173,8 +224,8 @@ function reportSyncErrors(
  * The success banner is suppressed under `--quiet`; the error report is
  * always shown (on stderr), matching the merge-path contract.
  */
-function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[], syncError?: string): void {
-  if (reportSyncErrors(arrays, linkErrors, syncError) && !program.opts().quiet) {
+function finishSync(banner: string, arrays: MergeStatusResult[][], linkErrors: string[], stepErrors: MergeStepErrors = {}): void {
+  if (reportSyncErrors(arrays, linkErrors, stepErrors) && !program.opts().quiet) {
     console.log(`\u2713 ${dryRunBanner(banner)}`);
   }
 }
@@ -272,14 +323,15 @@ program
     // The initial sync never throws: per-profile merge failures are recorded
     // as `status: 'error'` entries, a broken top-level source (e.g. a
     // non-object profiles/common/config.yaml) is captured into
-    // `syncResult.syncError`, and link failures into `syncResult.linkErrors`.
+    // `syncResult.stepErrors` (one slot per failing merge step), and link
+    // failures into `syncResult.linkErrors`.
     // Gate the success banner and exit code on ALL of them, through the same
     // shared reporting path as `sync` / `merge-all`.
     if (result.syncResult) {
       const clean = reportSyncErrors(
         [result.syncResult.config, result.syncResult.jobs, result.syncResult.soul],
         result.syncResult.linkErrors,
-        result.syncResult.syncError
+        result.syncResult.stepErrors
       );
       if (!clean) {
         return;
@@ -324,15 +376,16 @@ program
   .action((cmdOpts) => {
     const opts = { ...getOptions(cmdOpts), includeHermesLink: cmdOpts.includeHermesLink };
     // syncAll runs the merges (recorded as status:'error' entries, never
-    // thrown) and then the link steps (captured into result.linkErrors,
-    // never thrown). It never throws, so both the merge results and any link
-    // failures reach finishSync and are reported together.
+    // thrown; top-level step failures captured into result.stepErrors) and
+    // then the link steps (captured into result.linkErrors, never thrown).
+    // It never throws, so both the merge results and any link failures reach
+    // finishSync and are reported together.
     const result = syncAll(opts);
     finishSync(
       'Synced all Hermes profiles successfully',
       [result.config, result.jobs, result.soul],
       result.linkErrors,
-      result.syncError
+      result.stepErrors
     );
   });
 
@@ -344,23 +397,26 @@ program
     const opts = getOptions(cmdOpts);
     switch (target || 'all') {
       case 'all': {
-        // finishMerge captures a top-level mergeAll throw (e.g. a missing or
-        // non-object profiles/common/config.yaml) so it is reported cleanly
-        // instead of escaping as a raw stack trace.
+        // mergeAll wraps each sub-merge in its own try/catch: a top-level
+        // failure (e.g. a missing or non-object
+        // profiles/common/config.yaml) is captured into stepErrors instead
+        // of aborting the remaining steps, so finishMerge reports EVERY
+        // failing step (plus any per-profile failures) in one pass - never
+        // a raw stack trace.
         finishMerge('Merged config, jobs, and SOUL for all profiles', () => {
           const result = mergeAll(opts);
-          return [result.config, result.jobs, result.soul];
+          return { arrays: [result.config, result.jobs, result.soul], stepErrors: result.stepErrors };
         });
         break;
       }
       case 'config':
-        finishMerge('Merged config for all profiles', () => [mergeConfig(opts)]);
+        finishMerge('Merged config for all profiles', () => ({ arrays: [mergeConfig(opts)] }));
         break;
       case 'jobs':
-        finishMerge('Merged jobs for all profiles', () => [mergeJobs(opts)]);
+        finishMerge('Merged jobs for all profiles', () => ({ arrays: [mergeJobs(opts)] }));
         break;
       case 'soul':
-        finishMerge('Merged SOUL for all profiles', () => [mergeSoul(opts)]);
+        finishMerge('Merged SOUL for all profiles', () => ({ arrays: [mergeSoul(opts)] }));
         break;
       default:
         console.error(`Unknown merge target: ${target}. Valid options: all, config, jobs, soul`);
@@ -407,21 +463,21 @@ program
   .command('config-merge')
   .description('Alias for "merge config"')
   .action((cmdOpts) => {
-    finishMerge('Merged config for all profiles', () => [mergeConfig(getOptions(cmdOpts))]);
+    finishMerge('Merged config for all profiles', () => ({ arrays: [mergeConfig(getOptions(cmdOpts))] }));
   });
 
 program
   .command('jobs-merge')
   .description('Alias for "merge jobs"')
   .action((cmdOpts) => {
-    finishMerge('Merged jobs for all profiles', () => [mergeJobs(getOptions(cmdOpts))]);
+    finishMerge('Merged jobs for all profiles', () => ({ arrays: [mergeJobs(getOptions(cmdOpts))] }));
   });
 
 program
   .command('soul-merge')
   .description('Alias for "merge soul"')
   .action((cmdOpts) => {
-    finishMerge('Merged SOUL for all profiles', () => [mergeSoul(getOptions(cmdOpts))]);
+    finishMerge('Merged SOUL for all profiles', () => ({ arrays: [mergeSoul(getOptions(cmdOpts))] }));
   });
 
 program
@@ -449,14 +505,15 @@ program
   .command('merge-all')
   .description('Alias for "sync"')
   .action((cmdOpts) => {
-    // Same contract as `sync`: syncAll never throws, so the merge results are
-    // always reported together with any link failure.
+    // Same contract as `sync`: syncAll never throws (top-level step
+    // failures are captured into result.stepErrors), so the merge results
+    // are always reported together with any step or link failure.
     const result = syncAll(getOptions(cmdOpts));
     finishSync(
       'Merged config, jobs, and SOUL, and linked skills and plugins for all profiles',
       [result.config, result.jobs, result.soul],
       result.linkErrors,
-      result.syncError
+      result.stepErrors
     );
   });
 
