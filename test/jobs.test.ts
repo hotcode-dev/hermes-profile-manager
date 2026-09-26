@@ -228,6 +228,26 @@ describe('mergeJobs', () => {
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
   });
+
+  it('rejects the reserved profile name "common" BEFORE any read or write of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeJobs -p
+    // common` would read common/cron/jobs.json, merge it with
+    // common/cron/jobs.custom.json, and write the result BACK onto
+    // common/cron/jobs.json — self-merging the shared base. The reserved name
+    // must be rejected during the up-front validation loop.
+    assert.throws(
+      () => mergeJobs({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      }
+    );
+    // No workspace was created or modified at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+  });
 });
 
 describe('mergeJobsDocuments', () => {
