@@ -529,6 +529,48 @@ describe('initWorkspace', () => {
     }
   });
 
+  it('rejects the reserved profile name "common" BEFORE any filesystem side effect', () => {
+    // RESERVED-NAME REGRESSION: profiles/common/ is the SHARED common profile
+    // directory (base source for every merge/link step). Without the
+    // validator reserving it, initWorkspace would scaffold the per-profile
+    // custom files (config.custom.yaml, SOUL.custom.md,
+    // cron/jobs.custom.json) INTO the shared common dir while getProfileNames
+    // deliberately excludes "common" from the discovered profile list —
+    // an asymmetric contract that corrupts the shared base.
+    assert.throws(
+      () =>
+        initWorkspace({
+          targetDir: tmpDir,
+          profileName: 'common',
+          runSync: false,
+          logger: () => {}
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      }
+    );
+    // The throw happens before any side effect: no profiles/ tree at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
+  });
+
+  it('still accepts names that merely contain "common" (e.g. "common-worker")', () => {
+    // Exact-match reservation only: "common-worker" stays a valid per-profile
+    // name and must NOT be conflated with the reserved shared dir.
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'common-worker',
+      runSync: false,
+      logger: () => {}
+    });
+    assert.equal(result.profileName, 'common-worker');
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'common-worker', 'config.custom.yaml')));
+    // The shared common dir is untouched by the scaffolding (no custom files in it).
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'config.custom.yaml')));
+  });
+
   it('still scaffolds a valid profile name with dots, dashes, and underscores (regression guard)', () => {
     const result = initWorkspace({
       targetDir: tmpDir,
