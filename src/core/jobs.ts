@@ -144,7 +144,10 @@ export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocumen
         mergedCanons.add(canonicalJson(bJob));
       }
     } else if (bJob) {
-      mergedJobs.push(bJob);
+      // Copy like the sibling branches: pushing the reference would alias the
+      // caller's base job into the merged output, so a post-call mutation of
+      // the returned document would silently corrupt the input object.
+      mergedJobs.push({ ...bJob });
       mergedCanons.add(canonicalJson(bJob));
     }
   }
