@@ -2,8 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { deepMerge, isPlainObject } from '../utils/deep-merge.js';
-import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
-import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import { atomicWriteFileSync } from '../utils/fs-helpers.js';
+import { assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import {
+  validateExplicitProfiles,
+  resolveTargetProfiles,
+  assertNonEmptyTargetProfiles,
+  runPerProfileMerge
+} from '../utils/profile-targets.js';
 
 export interface MergeConfigOptions {
   rootDir?: string;
@@ -52,15 +58,10 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
-  // User-controlled profile names (global -p/--profiles option) are a
-  // path-traversal vector: path.join(profilesDir, '../../x') resolves
-  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
-  // any filesystem access or write, mirroring initWorkspace's "validated
-  // before path construction" contract. (Discovered names come from
-  // readdirSync, not user input.)
-  for (const profile of options.profiles ?? []) {
-    validateProfileName(profile);
-  }
+  // Explicit profile names (global -p/--profiles option) are a
+  // path-traversal vector; validated BEFORE any filesystem access or write
+  // (see validateExplicitProfiles). Discovered names come from readdirSync.
+  validateExplicitProfiles(options.profiles);
 
   const commonConfigPath = path.join(rootDir, 'profiles', 'common', 'config.yaml');
 
@@ -84,109 +85,89 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
   }
 
   const profilesDir = path.join(rootDir, 'profiles');
-  const availableProfiles = getProfileNames(profilesDir);
-  const targetProfiles = options.profiles && options.profiles.length > 0
-    ? options.profiles
-    : availableProfiles;
+  const targetProfiles = resolveTargetProfiles(options.profiles, profilesDir);
 
-  if (targetProfiles.length === 0 && !options.allowEmpty) {
-    throw new Error(`No profiles found under ${profilesDir}`);
-  }
+  assertNonEmptyTargetProfiles(targetProfiles, profilesDir, options.allowEmpty);
 
-  const results: MergeConfigResult[] = [];
-  let foundAnyCustom = false;
+  return runPerProfileMerge(
+    targetProfiles,
+    profilesDir,
+    options.profiles,
+    options.allowEmpty,
+    (dir) => `No profiles with valid config.custom.yaml could be merged under ${dir}`,
+    (profile, dir, found): MergeConfigResult => {
+      const profileDir = path.join(dir, profile);
+      // Defense in depth: the profile dir must stay strictly under
+      // profilesDir (closes traversal even for non-explicit names).
+      assertProfilePathInWorkspace(dir, profileDir);
+      const customConfigPath = path.join(profileDir, 'config.custom.yaml');
+      const outputPath = path.join(profileDir, 'config.yaml');
 
-  for (const profile of targetProfiles) {
-    const profileDir = path.join(profilesDir, profile);
-    // Defense in depth: the profile dir must stay strictly under
-    // profilesDir (closes traversal even for non-explicit names).
-    assertProfilePathInWorkspace(profilesDir, profileDir);
-    const customConfigPath = path.join(profileDir, 'config.custom.yaml');
-    const outputPath = path.join(profileDir, 'config.yaml');
+      if (!fs.existsSync(customConfigPath)) {
+        // Record a per-profile skipped entry instead of silently skipping: an
+        // explicitly targeted profile (or any profile in the allowEmpty
+        // aggregate path) whose custom source is missing is a visible no-op,
+        // not an invisible one. `foundAnyCustom` stays driven only by real
+        // custom sources below (see FoundAnyCustom).
+        return {
+          profile,
+          outputPath,
+          status: 'skipped',
+          error: `Profile custom config not found: ${customConfigPath}`
+        };
+      }
 
-    if (!fs.existsSync(customConfigPath)) {
-      // Record a per-profile skipped entry instead of silently skipping: an
-      // explicitly targeted profile (or any profile in the allowEmpty
-      // aggregate path) whose custom source is missing is a visible no-op,
-      // not an invisible one. `foundAnyCustom` stays driven only by real
-      // custom sources below, exactly as mergeJobs/mergeSoul do.
-      results.push({
-        profile,
-        outputPath,
-        status: 'skipped',
-        error: `Profile custom config not found: ${customConfigPath}`
-      });
-      continue;
-    }
+      // The custom source EXISTS: flip the flag (even if the merge below then
+      // fails — its failure rides on the per-profile `error` entry).
+      found.foundAnyCustom = true;
 
-    foundAnyCustom = true;
-
-    try {
-      const customRaw = fs.readFileSync(customConfigPath, 'utf8');
-      let customParsed: unknown;
       try {
-        customParsed = parseYaml(customRaw) ?? {};
+        const customRaw = fs.readFileSync(customConfigPath, 'utf8');
+        let customParsed: unknown;
+        try {
+          customParsed = parseYaml(customRaw) ?? {};
+        } catch (err: unknown) {
+          // Same one-line, path-including wrap as the top-level common parse
+          // above: the raw multi-line parse error would leak the source
+          // snippet into the CLI report and name no file.
+          const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+          throw new Error(`Custom config is not valid YAML: ${customConfigPath} — ${reason}`);
+        }
+
+        if (!isPlainObject(customParsed)) {
+          throw new Error(`Custom config is not a valid YAML object: ${customConfigPath}`);
+        }
+
+        // Base first, custom overrides second
+        const merged = deepMerge(commonParsed, customParsed);
+        const mergedYaml = stringifyYaml(merged);
+
+        if (!options.dryRun) {
+          atomicWriteFileSync(outputPath, mergedYaml);
+        }
+
+        // Under --dry-run the file was not written, so phrase the line as a
+        // preview rather than asserting a side effect that did not happen.
+        log(
+          options.dryRun
+            ? `Would merge config to: ${outputPath}`
+            : `Merged config written to: ${outputPath}`
+        );
+        return {
+          profile,
+          outputPath,
+          status: 'merged'
+        };
       } catch (err: unknown) {
-        // Same one-line, path-including wrap as the top-level common parse
-        // above: the raw multi-line parse error would leak the source
-        // snippet into the CLI report and name no file.
-        const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
-        throw new Error(`Custom config is not valid YAML: ${customConfigPath} — ${reason}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log(`Error merging config for ${profile}: ${errorMsg}`);
+        return {
+          profile,
+          outputPath,
+          status: 'error' as const,
+          error: errorMsg
+        };
       }
-
-      if (!isPlainObject(customParsed)) {
-        throw new Error(`Custom config is not a valid YAML object: ${customConfigPath}`);
-      }
-
-      // Base first, custom overrides second
-      const merged = deepMerge(commonParsed, customParsed);
-      const mergedYaml = stringifyYaml(merged);
-
-      if (!options.dryRun) {
-        atomicWriteFileSync(outputPath, mergedYaml);
-      }
-
-      // Under --dry-run the file was not written, so phrase the line as a
-      // preview rather than asserting a side effect that did not happen.
-      log(
-        options.dryRun
-          ? `Would merge config to: ${outputPath}`
-          : `Merged config written to: ${outputPath}`
-      );
-      results.push({
-        profile,
-        outputPath,
-        status: 'merged'
-      });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      log(`Error merging config for ${profile}: ${errorMsg}`);
-      results.push({
-        profile,
-        outputPath,
-        status: 'error',
-        error: errorMsg
-      });
     }
-  }
-
-  // Reached only with a non-empty target list (an empty one is caught by the
-  // `No profiles found under` guard above). Throw the aggregate "nothing to
-  // merge" error only when NO custom source EXISTS anywhere in the
-  // DISCOVERED set and no profiles were EXPLICITLY targeted — driven by
-  // source existence, NOT by merge success: a discovered profile whose
-  // config.custom.yaml exists but is invalid carries its failure in the
-  // per-profile `status: 'error'` entry (the real failure carrier), exactly
-  // as mergeJobs/mergeSoul gate on their `foundAnyCustom` flag. With a
-  // non-empty explicit `profiles` list each named profile already got a
-  // per-profile `skipped`/`error` entry above, so a top-level failure would
-  // be wrong and misleading.
-  if (!foundAnyCustom && !options.profiles) {
-    if (options.allowEmpty) {
-      return results;
-    }
-    throw new Error(`No profiles with valid config.custom.yaml could be merged under ${profilesDir}`);
-  }
-
-  return results;
+  );
 }

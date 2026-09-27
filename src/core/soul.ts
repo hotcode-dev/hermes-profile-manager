@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
-import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import { atomicWriteFileSync } from '../utils/fs-helpers.js';
+import { assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import {
+  validateExplicitProfiles,
+  resolveTargetProfiles,
+  assertNonEmptyTargetProfiles,
+  runPerProfileMerge
+} from '../utils/profile-targets.js';
 
 export interface MergeSoulOptions {
   rootDir?: string;
@@ -46,15 +52,10 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
-  // User-controlled profile names (global -p/--profiles option) are a
-  // path-traversal vector: path.join(profilesDir, '../../x') resolves
-  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
-  // any filesystem access or write, mirroring initWorkspace's "validated
-  // before path construction" contract. (Discovered names come from
-  // readdirSync, not user input.)
-  for (const profile of options.profiles ?? []) {
-    validateProfileName(profile);
-  }
+  // Explicit profile names (global -p/--profiles option) are a
+  // path-traversal vector; validated BEFORE any filesystem access or write
+  // (see validateExplicitProfiles). Discovered names come from readdirSync.
+  validateExplicitProfiles(options.profiles);
 
   const commonSoulPath = path.join(rootDir, 'profiles', 'common', 'SOUL.md');
 
@@ -64,93 +65,72 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
 
   const commonSoulContent = fs.readFileSync(commonSoulPath, 'utf8').trim();
   const profilesDir = path.join(rootDir, 'profiles');
-  const availableProfiles = getProfileNames(profilesDir);
-  const targetProfiles = options.profiles && options.profiles.length > 0
-    ? options.profiles
-    : availableProfiles;
+  const targetProfiles = resolveTargetProfiles(options.profiles, profilesDir);
 
-  // No-targets guard, shared with mergeConfig/mergeJobs: an empty target
-  // list (no profile subdirs, or an explicit `profiles: []` on a profile-less
-  // workspace) is a hard "no profiles found" failure unless `allowEmpty`. An
-  // empty list names no profile, so it is NOT exempted the way a non-empty
-  // explicit list is.
-  if (targetProfiles.length === 0 && !options.allowEmpty) {
-    throw new Error(`No profiles found under ${profilesDir}`);
-  }
+  assertNonEmptyTargetProfiles(targetProfiles, profilesDir, options.allowEmpty);
 
-  const results: MergeSoulResult[] = [];
-  let foundAnyCustom = false;
+  return runPerProfileMerge(
+    targetProfiles,
+    profilesDir,
+    options.profiles,
+    options.allowEmpty,
+    (dir) => `Error: no profiles with SOUL.custom.md found under ${dir}`,
+    (profile, dir, found): MergeSoulResult => {
+      const profileDir = path.join(dir, profile);
+      // Defense in depth: the profile dir must stay strictly under
+      // profilesDir (closes traversal even for non-explicit names).
+      assertProfilePathInWorkspace(dir, profileDir);
+      const customSoulPath = path.join(profileDir, 'SOUL.custom.md');
+      const outputSoulPath = path.join(profileDir, 'SOUL.md');
 
-  for (const profile of targetProfiles) {
-    const profileDir = path.join(profilesDir, profile);
-    // Defense in depth: the profile dir must stay strictly under
-    // profilesDir (closes traversal even for non-explicit names).
-    assertProfilePathInWorkspace(profilesDir, profileDir);
-    const customSoulPath = path.join(profileDir, 'SOUL.custom.md');
-    const outputSoulPath = path.join(profileDir, 'SOUL.md');
-
-    if (!fs.existsSync(customSoulPath)) {
-      // Record a per-profile skipped entry instead of silently skipping,
-      // mirroring mergeConfig: an explicitly targeted profile (or any
-      // profile in the allowEmpty aggregate path) whose custom source is
-      // missing is a visible no-op, not an invisible one. `foundAnyCustom`
-      // stays driven only by real custom sources below.
-      results.push({
-        profile,
-        outputPath: outputSoulPath,
-        status: 'skipped',
-        error: `Profile SOUL.custom.md not found: ${customSoulPath}`
-      });
-      continue;
-    }
-
-    foundAnyCustom = true;
-
-    try {
-      const customSoulContent = fs.readFileSync(customSoulPath, 'utf8').trim();
-      const combined = `${customSoulContent}\n\n${commonSoulContent}\n`;
-
-      if (!options.dryRun) {
-        atomicWriteFileSync(outputSoulPath, combined);
+      if (!fs.existsSync(customSoulPath)) {
+        // Record a per-profile skipped entry instead of silently skipping:
+        // an explicitly targeted profile (or any profile in the allowEmpty
+        // aggregate path) whose custom source is missing is a visible no-op,
+        // not an invisible one. `foundAnyCustom` stays driven only by real
+        // custom sources below (see FoundAnyCustom).
+        return {
+          profile,
+          outputPath: outputSoulPath,
+          status: 'skipped',
+          error: `Profile SOUL.custom.md not found: ${customSoulPath}`
+        };
       }
 
-      // Under --dry-run the file was not written, so phrase the line as a
-      // preview rather than asserting a side effect that did not happen.
-      log(
-        options.dryRun
-          ? `Would merge SOUL to: ${outputSoulPath}`
-          : `Merged SOUL written to: ${outputSoulPath}`
-      );
-      results.push({
-        profile,
-        outputPath: outputSoulPath,
-        status: 'merged'
-      });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      log(`Error merging SOUL for ${profile}: ${errorMsg}`);
-      results.push({
-        profile,
-        outputPath: outputSoulPath,
-        status: 'error',
-        error: errorMsg
-      });
-    }
-  }
+      // The custom source EXISTS: flip the flag (even if the merge below
+      // then fails — its failure rides on the per-profile `error` entry).
+      found.foundAnyCustom = true;
 
-  // Reached only with a non-empty target list (an empty one is caught by the
-  // `No profiles found under` guard above). Throw the aggregate "nothing to
-  // merge" error only when no profiles were EXPLICITLY targeted. With a
-  // non-empty explicit `profiles` list each named profile already got a
-  // per-profile `skipped` entry above, so a top-level "no profiles with
-  // SOUL.custom.md found" failure would be wrong and misleading — exactly
-  // mergeConfig's `!options.profiles` gate.
-  if (!foundAnyCustom && !options.profiles) {
-    if (options.allowEmpty) {
-      return results;
-    }
-    throw new Error(`Error: no profiles with SOUL.custom.md found under ${profilesDir}`);
-  }
+      try {
+        const customSoulContent = fs.readFileSync(customSoulPath, 'utf8').trim();
+        const combined = `${customSoulContent}\n\n${commonSoulContent}\n`;
 
-  return results;
+        if (!options.dryRun) {
+          atomicWriteFileSync(outputSoulPath, combined);
+        }
+
+        // Under --dry-run the file was not written, so phrase the line as a
+        // preview rather than asserting a side effect that did not happen.
+        log(
+          options.dryRun
+            ? `Would merge SOUL to: ${outputSoulPath}`
+            : `Merged SOUL written to: ${outputSoulPath}`
+        );
+        return {
+          profile,
+          outputPath: outputSoulPath,
+          status: 'merged'
+        };
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log(`Error merging SOUL for ${profile}: ${errorMsg}`);
+        return {
+          profile,
+          outputPath: outputSoulPath,
+          status: 'error',
+          error: errorMsg
+        };
+      }
+    }
+  );
 }

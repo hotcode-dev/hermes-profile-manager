@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { atomicWriteFileSync, getProfileNames } from '../utils/fs-helpers.js';
-import { validateProfileName, assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import { atomicWriteFileSync } from '../utils/fs-helpers.js';
+import { assertProfilePathInWorkspace } from '../utils/profile-name.js';
+import {
+  validateExplicitProfiles,
+  resolveTargetProfiles,
+  assertNonEmptyTargetProfiles,
+  runPerProfileMerge
+} from '../utils/profile-targets.js';
 
 export interface MergeJobsOptions {
   rootDir?: string;
@@ -183,152 +189,126 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
-  // User-controlled profile names (global -p/--profiles option) are a
-  // path-traversal vector: path.join(profilesDir, '../../x') resolves
-  // OUTSIDE the workspace. Validate every explicitly targeted name BEFORE
-  // any filesystem access or write, mirroring initWorkspace's "validated
-  // before path construction" contract. (Discovered names come from
-  // readdirSync, not user input.)
-  for (const profile of options.profiles ?? []) {
-    validateProfileName(profile);
-  }
+  // Explicit profile names (global -p/--profiles option) are a
+  // path-traversal vector; validated BEFORE any filesystem access or write
+  // (see validateExplicitProfiles). Discovered names come from readdirSync.
+  validateExplicitProfiles(options.profiles);
 
   const profilesDir = path.join(rootDir, 'profiles');
-  const availableProfiles = getProfileNames(profilesDir);
-  const targetProfiles = options.profiles && options.profiles.length > 0
-    ? options.profiles
-    : availableProfiles;
+  const targetProfiles = resolveTargetProfiles(options.profiles, profilesDir);
 
-  // No-targets guard, shared with mergeConfig/mergeSoul: an empty target
-  // list (no profile subdirs, or an explicit `profiles: []` on a profile-less
-  // workspace) is a hard "no profiles found" failure unless `allowEmpty`. An
-  // empty list names no profile, so it is NOT exempted the way a non-empty
-  // explicit list is.
-  if (targetProfiles.length === 0 && !options.allowEmpty) {
-    throw new Error(`No profiles found under ${profilesDir}`);
-  }
+  assertNonEmptyTargetProfiles(targetProfiles, profilesDir, options.allowEmpty);
 
-  const results: MergeJobsResult[] = [];
-  let foundAnyCustom = false;
+  return runPerProfileMerge(
+    targetProfiles,
+    profilesDir,
+    options.profiles,
+    options.allowEmpty,
+    (dir) => `Error: no profiles with cron/jobs.custom.json found under ${dir}`,
+    (profile, dir, found): MergeJobsResult => {
+      const profileDir = path.join(dir, profile);
+      // Defense in depth: the profile dir must stay strictly under
+      // profilesDir (closes traversal even for non-explicit names).
+      assertProfilePathInWorkspace(dir, profileDir);
+      const cronDir = path.join(profileDir, 'cron');
+      const customJobsPath = path.join(cronDir, 'jobs.custom.json');
+      const outputJobsPath = path.join(cronDir, 'jobs.json');
 
-  for (const profile of targetProfiles) {
-    const profileDir = path.join(profilesDir, profile);
-    // Defense in depth: the profile dir must stay strictly under
-    // profilesDir (closes traversal even for non-explicit names).
-    assertProfilePathInWorkspace(profilesDir, profileDir);
-    const cronDir = path.join(profileDir, 'cron');
-    const customJobsPath = path.join(cronDir, 'jobs.custom.json');
-    const outputJobsPath = path.join(cronDir, 'jobs.json');
+      if (!fs.existsSync(customJobsPath)) {
+        // Record a per-profile skipped entry instead of silently skipping:
+        // an explicitly targeted profile (or any profile in the allowEmpty
+        // aggregate path) whose custom source is missing is a visible no-op,
+        // not an invisible one. `foundAnyCustom` stays driven only by real
+        // custom sources below (see FoundAnyCustom).
+        return {
+          profile,
+          outputPath: outputJobsPath,
+          status: 'skipped',
+          error: `Profile cron/jobs.custom.json not found: ${customJobsPath}`
+        };
+      }
 
-    if (!fs.existsSync(customJobsPath)) {
-      // Record a per-profile skipped entry instead of silently skipping,
-      // mirroring mergeConfig: an explicitly targeted profile (or any
-      // profile in the allowEmpty aggregate path) whose custom source is
-      // missing is a visible no-op, not an invisible one. `foundAnyCustom`
-      // stays driven only by real custom sources below.
-      results.push({
-        profile,
-        outputPath: outputJobsPath,
-        status: 'skipped',
-        error: `Profile cron/jobs.custom.json not found: ${customJobsPath}`
-      });
-      continue;
-    }
+      // The custom source EXISTS: flip the flag (even if the merge below
+      // then fails — its failure rides on the per-profile `error` entry).
+      found.foundAnyCustom = true;
 
-    foundAnyCustom = true;
-
-    try {
-      const customRaw = fs.readFileSync(customJobsPath, 'utf8');
-      let customParsed: unknown;
       try {
-        customParsed = JSON.parse(customRaw);
-      } catch {
-        throw new Error(`Jobs custom file is not valid JSON: ${customJobsPath}`);
-      }
-
-      let baseParsed: unknown = { jobs: [] };
-      if (fs.existsSync(outputJobsPath)) {
-        let baseOk = false;
+        const customRaw = fs.readFileSync(customJobsPath, 'utf8');
+        let customParsed: unknown;
         try {
-          const baseRaw = fs.readFileSync(outputJobsPath, 'utf8');
-          baseParsed = JSON.parse(baseRaw);
-          baseOk = true;
+          customParsed = JSON.parse(customRaw);
         } catch {
-          // Base file exists but does not parse. Fall back to an empty
-          // document (the correct recovery behavior — an unparseable base
-          // has no recoverable jobs) but make the data loss VISIBLE: the
-          // next write below overwrites this file with custom jobs only,
-          // dropping every previously merged base job.
-          baseParsed = { jobs: [] };
+          throw new Error(`Jobs custom file is not valid JSON: ${customJobsPath}`);
         }
-        if (baseOk && !isJobsDocShaped(baseParsed)) {
-          // Valid JSON but not a jobs document (e.g. `42`, `"foo"`,
-          // `{noJobs: true}`): normalizeJobsDoc resets its jobs list to
-          // [] below, dropping every previously merged base job just as
-          // silently as the parse-failure path above. Surface it the same
-          // way.
-          log(
-            `Warning: base jobs file is not a jobs document at ${outputJobsPath} — ` +
-              'resetting to empty base; previously merged jobs will be lost. ' +
-              'Fix or restore the file before the next run.'
-          );
-        } else if (!baseOk) {
-          log(
-            `Warning: base jobs file is not valid JSON at ${outputJobsPath} — ` +
-              'resetting to empty base; previously merged jobs will be lost. ' +
-              'Fix or restore the file before the next run.'
-          );
+
+        let baseParsed: unknown = { jobs: [] };
+        if (fs.existsSync(outputJobsPath)) {
+          let baseOk = false;
+          try {
+            const baseRaw = fs.readFileSync(outputJobsPath, 'utf8');
+            baseParsed = JSON.parse(baseRaw);
+            baseOk = true;
+          } catch {
+            // Base file exists but does not parse. Fall back to an empty
+            // document (the correct recovery behavior — an unparseable base
+            // has no recoverable jobs) but make the data loss VISIBLE: the
+            // next write below overwrites this file with custom jobs only,
+            // dropping every previously merged base job.
+            baseParsed = { jobs: [] };
+          }
+          if (baseOk && !isJobsDocShaped(baseParsed)) {
+            // Valid JSON but not a jobs document (e.g. `42`, `"foo"`,
+            // `{noJobs: true}`): normalizeJobsDoc resets its jobs list to
+            // [] below, dropping every previously merged base job just as
+            // silently as the parse-failure path above. Surface it the same
+            // way.
+            log(
+              `Warning: base jobs file is not a jobs document at ${outputJobsPath} — ` +
+                'resetting to empty base; previously merged jobs will be lost. ' +
+                'Fix or restore the file before the next run.'
+            );
+          } else if (!baseOk) {
+            log(
+              `Warning: base jobs file is not valid JSON at ${outputJobsPath} — ` +
+                'resetting to empty base; previously merged jobs will be lost. ' +
+                'Fix or restore the file before the next run.'
+            );
+          }
         }
+
+        const mergedDoc = mergeJobsDocuments(
+          normalizeJobsDoc(baseParsed),
+          normalizeJobsDoc(customParsed)
+        );
+
+        const formattedJson = JSON.stringify(mergedDoc, null, 2) + '\n';
+
+        if (!options.dryRun) {
+          atomicWriteFileSync(outputJobsPath, formattedJson);
+        }
+
+        // Under --dry-run the file was not written, so phrase the line as a
+        // preview rather than asserting a side effect that did not happen.
+        log(
+          options.dryRun
+            ? `Would merge jobs to: ${outputJobsPath}`
+            : `Merged jobs written to: ${outputJobsPath}`
+        );
+        return {
+          profile,
+          outputPath: outputJobsPath,
+          status: 'merged'
+        };
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log(`Error merging jobs for ${profile}: ${errorMsg}`);
+        return {
+          profile,
+          outputPath: outputJobsPath,
+          status: 'error',
+          error: errorMsg
+        };
       }
-
-      const mergedDoc = mergeJobsDocuments(
-        normalizeJobsDoc(baseParsed),
-        normalizeJobsDoc(customParsed)
-      );
-
-      const formattedJson = JSON.stringify(mergedDoc, null, 2) + '\n';
-
-      if (!options.dryRun) {
-        atomicWriteFileSync(outputJobsPath, formattedJson);
-      }
-
-      // Under --dry-run the file was not written, so phrase the line as a
-      // preview rather than asserting a side effect that did not happen.
-      log(
-        options.dryRun
-          ? `Would merge jobs to: ${outputJobsPath}`
-          : `Merged jobs written to: ${outputJobsPath}`
-      );
-      results.push({
-        profile,
-        outputPath: outputJobsPath,
-        status: 'merged'
-      });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      log(`Error merging jobs for ${profile}: ${errorMsg}`);
-      results.push({
-        profile,
-        outputPath: outputJobsPath,
-        status: 'error',
-        error: errorMsg
-      });
     }
-  }
-
-  // Reached only with a non-empty target list (an empty one is caught by the
-  // `No profiles found under` guard above). Throw the aggregate "nothing to
-  // merge" error only when no profiles were EXPLICITLY targeted. With a
-  // non-empty explicit `profiles` list each named profile already got a
-  // per-profile `skipped` entry above, so a top-level "no profiles with
-  // cron/jobs.custom.json found" failure would be wrong and misleading —
-  // exactly mergeConfig's `!options.profiles` gate.
-  if (!foundAnyCustom && !options.profiles) {
-    if (options.allowEmpty) {
-      return results;
-    }
-    throw new Error(`Error: no profiles with cron/jobs.custom.json found under ${profilesDir}`);
-  }
-
-  return results;
+  );
 }
