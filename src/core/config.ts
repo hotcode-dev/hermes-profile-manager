@@ -10,6 +10,7 @@ import {
   assertNonEmptyTargetProfiles,
   runPerProfileMerge
 } from '../utils/profile-targets.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface MergeConfigOptions {
   rootDir?: string;
@@ -43,12 +44,12 @@ export interface MergeConfigOptions {
   allowEmpty?: boolean;
 }
 
-export interface MergeConfigResult {
-  profile: string;
-  outputPath: string;
-  status: 'merged' | 'skipped' | 'error';
-  error?: string;
-}
+/**
+ * Per-profile config merge result. Structurally identical to the shared
+ * per-profile merge result shape (see merge-results.ts); kept as an alias
+ * so the public API name is stable and both names stay in lockstep.
+ */
+export type MergeConfigResult = MergeStatusResult;
 
 /**
  * Merges common config (profiles/common/config.yaml) with profile custom config (profiles/<profile>/config.custom.yaml)

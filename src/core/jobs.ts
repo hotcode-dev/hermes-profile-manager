@@ -8,6 +8,7 @@ import {
   assertNonEmptyTargetProfiles,
   runPerProfileMerge
 } from '../utils/profile-targets.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface MergeJobsOptions {
   rootDir?: string;
@@ -35,12 +36,12 @@ export interface MergeJobsOptions {
   allowEmpty?: boolean;
 }
 
-export interface MergeJobsResult {
-  profile: string;
-  outputPath: string;
-  status: 'merged' | 'skipped' | 'error';
-  error?: string;
-}
+/**
+ * Per-profile jobs merge result. Structurally identical to the shared
+ * per-profile merge result shape (see merge-results.ts); kept as an alias
+ * so the public API name is stable and both names stay in lockstep.
+ */
+export type MergeJobsResult = MergeStatusResult;
 
 interface JobItem {
   id?: string | number;

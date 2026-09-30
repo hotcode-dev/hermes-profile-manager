@@ -8,6 +8,7 @@ import {
   assertNonEmptyTargetProfiles,
   runPerProfileMerge
 } from '../utils/profile-targets.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface MergeSoulOptions {
   rootDir?: string;
@@ -35,12 +36,12 @@ export interface MergeSoulOptions {
   allowEmpty?: boolean;
 }
 
-export interface MergeSoulResult {
-  profile: string;
-  outputPath: string;
-  status: 'merged' | 'skipped' | 'error';
-  error?: string;
-}
+/**
+ * Per-profile SOUL merge result. Structurally identical to the shared
+ * per-profile merge result shape (see merge-results.ts); kept as an alias
+ * so the public API name is stable and both names stay in lockstep.
+ */
+export type MergeSoulResult = MergeStatusResult;
 
 /**
  * Merges profile custom SOUL (profiles/<profile>/SOUL.custom.md)
