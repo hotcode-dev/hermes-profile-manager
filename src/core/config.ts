@@ -10,6 +10,7 @@ import {
   assertNonEmptyTargetProfiles,
   runPerProfileMerge
 } from '../utils/profile-targets.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface MergeConfigOptions {
   rootDir?: string;
@@ -43,18 +44,11 @@ export interface MergeConfigOptions {
   allowEmpty?: boolean;
 }
 
-export interface MergeConfigResult {
-  profile: string;
-  outputPath: string;
-  status: 'merged' | 'skipped' | 'error';
-  error?: string;
-}
-
 /**
  * Merges common config (profiles/common/config.yaml) with profile custom config (profiles/<profile>/config.custom.yaml)
  * into profiles/<profile>/config.yaml.
  */
-export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult[] {
+export function mergeConfig(options: MergeConfigOptions = {}): MergeStatusResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
@@ -95,7 +89,7 @@ export function mergeConfig(options: MergeConfigOptions = {}): MergeConfigResult
     options.profiles,
     options.allowEmpty,
     (dir) => `No profiles with valid config.custom.yaml could be merged under ${dir}`,
-    (profile, dir, found): MergeConfigResult => {
+    (profile, dir, found): MergeStatusResult => {
       const profileDir = path.join(dir, profile);
       // Defense in depth: the profile dir must stay strictly under
       // profilesDir (closes traversal even for non-explicit names).

@@ -1,7 +1,8 @@
-import { mergeConfig, MergeConfigOptions, MergeConfigResult } from './config.js';
-import { mergeJobs, MergeJobsOptions, MergeJobsResult } from './jobs.js';
-import { mergeSoul, MergeSoulOptions, MergeSoulResult } from './soul.js';
+import { mergeConfig, MergeConfigOptions } from './config.js';
+import { mergeJobs, MergeJobsOptions } from './jobs.js';
+import { mergeSoul, MergeSoulOptions } from './soul.js';
 import { linkSkills, linkPlugins, linkHermes, LinkOptions, LinkResult } from './links.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface SyncOptions extends MergeConfigOptions, MergeJobsOptions, MergeSoulOptions, LinkOptions {
   includeHermesLink?: boolean;
@@ -23,9 +24,9 @@ export interface MergeStepErrors {
 }
 
 export interface SyncAllResult {
-  config: MergeConfigResult[];
-  jobs: MergeJobsResult[];
-  soul: MergeSoulResult[];
+  config: MergeStatusResult[];
+  jobs: MergeStatusResult[];
+  soul: MergeStatusResult[];
   skills: LinkResult[];
   plugins: LinkResult[];
   hermesLink?: LinkResult;
@@ -77,25 +78,25 @@ export interface SyncAllResult {
  * custom sources, broken jobs files, ...) are still recorded and reported
  * instead of staying invisible behind the first failure.
  */
-export function mergeAll(options: SyncOptions = {}): { config: MergeConfigResult[]; jobs: MergeJobsResult[]; soul: MergeSoulResult[]; stepErrors: MergeStepErrors } {
+export function mergeAll(options: SyncOptions = {}): { config: MergeStatusResult[]; jobs: MergeStatusResult[]; soul: MergeStatusResult[]; stepErrors: MergeStepErrors } {
   const baseOptions = { ...options, allowEmpty: true };
   const stepErrors: MergeStepErrors = {};
 
-  let config: MergeConfigResult[] = [];
+  let config: MergeStatusResult[] = [];
   try {
     config = mergeConfig(baseOptions);
   } catch (err: unknown) {
     stepErrors.config = err instanceof Error ? err.message : String(err);
   }
 
-  let jobs: MergeJobsResult[] = [];
+  let jobs: MergeStatusResult[] = [];
   try {
     jobs = mergeJobs(baseOptions);
   } catch (err: unknown) {
     stepErrors.jobs = err instanceof Error ? err.message : String(err);
   }
 
-  let soul: MergeSoulResult[] = [];
+  let soul: MergeStatusResult[] = [];
   try {
     soul = mergeSoul(baseOptions);
   } catch (err: unknown) {

@@ -8,6 +8,7 @@ import {
   assertNonEmptyTargetProfiles,
   runPerProfileMerge
 } from '../utils/profile-targets.js';
+import { MergeStatusResult } from '../utils/merge-results.js';
 
 export interface MergeJobsOptions {
   rootDir?: string;
@@ -33,13 +34,6 @@ export interface MergeJobsOptions {
    *   (exit 0), not a top-level failure.
    */
   allowEmpty?: boolean;
-}
-
-export interface MergeJobsResult {
-  profile: string;
-  outputPath: string;
-  status: 'merged' | 'skipped' | 'error';
-  error?: string;
 }
 
 interface JobItem {
@@ -185,7 +179,7 @@ export function mergeJobsDocuments(baseDoc: JobsDocument, customDoc: JobsDocumen
  * Custom: profiles/<profile>/cron/jobs.custom.json
  * Output: profiles/<profile>/cron/jobs.json
  */
-export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
+export function mergeJobs(options: MergeJobsOptions = {}): MergeStatusResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
@@ -205,7 +199,7 @@ export function mergeJobs(options: MergeJobsOptions = {}): MergeJobsResult[] {
     options.profiles,
     options.allowEmpty,
     (dir) => `Error: no profiles with cron/jobs.custom.json found under ${dir}`,
-    (profile, dir, found): MergeJobsResult => {
+    (profile, dir, found): MergeStatusResult => {
       const profileDir = path.join(dir, profile);
       // Defense in depth: the profile dir must stay strictly under
       // profilesDir (closes traversal even for non-explicit names).
