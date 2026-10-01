@@ -49,7 +49,7 @@ export type MergeSoulResult = MergeStatusResult;
  * into profiles/<profile>/SOUL.md.
  * Order: Profile custom SOUL comes first; common SOUL is appended last.
  */
-export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
+export function mergeSoul(options: MergeSoulOptions = {}): MergeStatusResult[] {
   const rootDir = options.rootDir || process.cwd();
   const log = options.logger || console.log;
 
@@ -76,7 +76,7 @@ export function mergeSoul(options: MergeSoulOptions = {}): MergeSoulResult[] {
     options.profiles,
     options.allowEmpty,
     (dir) => `Error: no profiles with SOUL.custom.md found under ${dir}`,
-    (profile, dir, found): MergeSoulResult => {
+    (profile, dir, found): MergeStatusResult => {
       const profileDir = path.join(dir, profile);
       // Defense in depth: the profile dir must stay strictly under
       // profilesDir (closes traversal even for non-explicit names).
