@@ -52,6 +52,21 @@ function runCli(args: string[], opts: { cwd?: string; quiet?: boolean } = {}): {
   };
 }
 
+// The package version (single source of truth) — the --version test below
+// asserts the CLI reports exactly this value, so a future bump that drifts
+// the CLI literal would fail here.
+const PACKAGE_VERSION = (JSON.parse(
+  fs.readFileSync(path.join(import.meta.dirname, '..', 'package.json'), 'utf8')
+) as { version: string }).version;
+
+describe('CLI --version reports the package.json version', () => {
+  it('--version prints the version declared in package.json and exits 0', () => {
+    const { status, stdout } = runCli(['--version']);
+    assert.equal(status, 0);
+    assert.equal(stdout.trim(), PACKAGE_VERSION);
+  });
+});
+
 describe('merge-results helper (pure decision logic)', () => {
   it('collectMergeErrors returns only status === "error" entries, across multiple arrays', () => {
     const config: MergeStatusResult[] = [

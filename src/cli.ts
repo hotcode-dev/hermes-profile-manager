@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { findProjectRoot } from './utils/root-finder.js';
 import { mergeConfig } from './core/config.js';
 import { mergeJobs } from './core/jobs.js';
@@ -10,12 +11,22 @@ import { mergeAll, linkAll, syncAll, MergeStepErrors } from './core/sync.js';
 import { initWorkspace, InitFilesystemError } from './core/init.js';
 import { collectMergeErrors, MergeStatusResult } from './utils/merge-results.js';
 
+// The package version is sourced from package.json (the single source of
+// truth) instead of a hardcoded literal, so a version bump can never drift
+// from the CLI again. The CLI bundle lives at <package-root>/dist/cli.js,
+// so '../package.json' anchored at this module's own URL (createRequire)
+// resolves the package-root package.json in both the repo layout and the
+// installed-node_modules layout.
+const pkgVersion = (createRequire(import.meta.url)('../package.json') as {
+  version: string;
+}).version;
+
 const program = new Command();
 
 program
   .name('hermes-profile-manager')
   .description('Hermes agent profile manager: merge configs, jobs, SOUL prompts, and manage symlinks')
-  .version('0.1.0')
+  .version(pkgVersion)
   .option('-r, --root <path>', 'Path to repository root (auto-detected by default)')
   .option('--hermes-dir <path>', 'Path to Hermes home directory (default: ~/.hermes)')
   .option('-p, --profiles <profiles...>', 'Specific profile names to target')
