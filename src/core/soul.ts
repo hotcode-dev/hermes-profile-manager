@@ -37,13 +37,6 @@ export interface MergeSoulOptions {
 }
 
 /**
- * Per-profile SOUL merge result. Structurally identical to the shared
- * per-profile merge result shape (see merge-results.ts); kept as an alias
- * so the public API name is stable and both names stay in lockstep.
- */
-export type MergeSoulResult = MergeStatusResult;
-
-/**
  * Merges profile custom SOUL (profiles/<profile>/SOUL.custom.md)
  * with common SOUL (profiles/common/SOUL.md)
  * into profiles/<profile>/SOUL.md.

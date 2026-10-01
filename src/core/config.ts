@@ -45,13 +45,6 @@ export interface MergeConfigOptions {
 }
 
 /**
- * Per-profile config merge result. Structurally identical to the shared
- * per-profile merge result shape (see merge-results.ts); kept as an alias
- * so the public API name is stable and both names stay in lockstep.
- */
-export type MergeConfigResult = MergeStatusResult;
-
-/**
  * Merges common config (profiles/common/config.yaml) with profile custom config (profiles/<profile>/config.custom.yaml)
  * into profiles/<profile>/config.yaml.
  */

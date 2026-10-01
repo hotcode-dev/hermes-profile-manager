@@ -36,13 +36,6 @@ export interface MergeJobsOptions {
   allowEmpty?: boolean;
 }
 
-/**
- * Per-profile jobs merge result. Structurally identical to the shared
- * per-profile merge result shape (see merge-results.ts); kept as an alias
- * so the public API name is stable and both names stay in lockstep.
- */
-export type MergeJobsResult = MergeStatusResult;
-
 interface JobItem {
   id?: string | number;
   [key: string]: unknown;
