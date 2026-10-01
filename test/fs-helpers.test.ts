@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { ensureSymlinkSync, atomicWriteFileSync, getProfileNames } from '../src/utils/fs-helpers.js';
+import { ensureSymlinkSync, atomicWriteFileSync, getProfileNames, pruneStaleSymlinks } from '../src/utils/fs-helpers.js';
 
 describe('ensureSymlinkSync', () => {
   let tmpDir: string;
@@ -184,5 +184,121 @@ describe('getProfileNames', () => {
     fs.symlinkSync(path.join(tmpDir, 'file.txt'), path.join(profilesDir, 'filelink'));
 
     assert.deepEqual(getProfileNames(profilesDir), ['good1', 'good2']);
+  });
+});
+
+describe('pruneStaleSymlinks', () => {
+  let tmpDir: string;
+  let logs: string[];
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-prune-'));
+    logs = [];
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const log = (msg: string) => logs.push(msg);
+
+  const setupLinks = (dir: string) => {
+    // A live symlink (target exists) and a dangling one (target missing).
+    const liveTarget = path.join(tmpDir, 'live-target');
+    fs.mkdirSync(liveTarget, { recursive: true });
+    fs.symlinkSync(liveTarget, path.join(dir, 'live'));
+    fs.symlinkSync(path.join(tmpDir, 'does-not-exist'), path.join(dir, 'dangling'));
+  };
+
+  it('removes dangling symlinks', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    setupLinks(dir);
+
+    pruneStaleSymlinks(dir, false, log);
+
+    assert.ok(!fs.existsSync(path.join(dir, 'dangling')), 'dangling symlink must be unlinked');
+  });
+
+  it('preserves live symlinks', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    setupLinks(dir);
+
+    pruneStaleSymlinks(dir, false, log);
+
+    const live = path.join(dir, 'live');
+    assert.ok(fs.lstatSync(live).isSymbolicLink(), 'live symlink must survive');
+    assert.ok(fs.statSync(live).isDirectory(), 'live symlink must still resolve');
+  });
+
+  it('never touches real directories', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    const realDir = path.join(dir, 'real');
+    fs.mkdirSync(realDir, { recursive: true });
+    fs.writeFileSync(path.join(realDir, 'data.txt'), 'user data');
+
+    pruneStaleSymlinks(dir, false, log);
+
+    assert.ok(fs.statSync(realDir).isDirectory(), 'real directory must be preserved');
+    assert.equal(fs.readFileSync(path.join(realDir, 'data.txt'), 'utf8'), 'user data');
+    assert.equal(logs.length, 0, 'real directory must not be logged');
+  });
+
+  it('never touches regular files', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'regular.txt');
+    fs.writeFileSync(file, 'keep me');
+
+    pruneStaleSymlinks(dir, false, log);
+
+    assert.ok(fs.statSync(file).isFile(), 'regular file must be preserved');
+    assert.equal(fs.readFileSync(file, 'utf8'), 'keep me');
+    assert.equal(logs.length, 0, 'regular file must not be logged');
+  });
+
+  it('dryRun reports dangling symlinks without removing anything', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    setupLinks(dir);
+
+    pruneStaleSymlinks(dir, true, log);
+
+    const dangling = path.join(dir, 'dangling');
+    assert.ok(fs.lstatSync(dangling).isSymbolicLink(), 'dry run must not remove the dangling symlink');
+    assert.ok(logs.some((m) => m === `Would remove stale symlink: ${dangling}`),
+      `expected preview log, got: ${JSON.stringify(logs)}`);
+    assert.ok(!logs.some((m) => m.startsWith('Removed')), 'dry run must not log real removals');
+  });
+
+  it('is a clean no-op when the directory does not exist', () => {
+    const missing = path.join(tmpDir, 'nope');
+    let threw: unknown;
+    try {
+      pruneStaleSymlinks(missing, false, log);
+    } catch (err) {
+      threw = err;
+    }
+    assert.equal(threw, undefined, 'missing directory must not throw');
+    assert.equal(logs.length, 0, 'missing directory must not log');
+  });
+
+  it('logs a removal message for each stale symlink it removes', () => {
+    const dir = path.join(tmpDir, 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    setupLinks(dir);
+    // A second dangling link: two removals must be reported.
+    const second = path.join(dir, 'dangling2');
+    fs.symlinkSync(path.join(tmpDir, 'also-missing'), second);
+
+    pruneStaleSymlinks(dir, false, log);
+
+    assert.ok(logs.some((m) => m === `Removed stale symlink: ${path.join(dir, 'dangling')}`),
+      `expected removal log for first stale symlink, got: ${JSON.stringify(logs)}`);
+    assert.ok(logs.some((m) => m === `Removed stale symlink: ${second}`),
+      `expected removal log for second stale symlink, got: ${JSON.stringify(logs)}`);
+    assert.ok(!logs.some((m) => m.startsWith('Would remove')), 'live run must not log previews');
   });
 });
