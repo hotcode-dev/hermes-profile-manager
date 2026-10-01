@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:8c7a981b3179255a2e7ed7cfd309a4f578a71287ba9fc0715f071b7bdf54412a",
+  "claims": [
+    {
+      "id": "claim_ba661878cf9f449dbadab45d4eae6d2c",
+      "statement": "src/index.ts is the flat public API surface, re-exporting all core concern modules (config, jobs, soul, links, sync, init) and all shared utils (deep-merge, fs-helpers, merge-results, profile-name, profile-targets, root-finder), so a single import exposes the whole library.",
+      "evidence": [
+        {
+          "resource": "repo://src/index.ts#L1-L12",
+          "version": "repo-lines-v1:sha256:69ccdbde1c334bbe7a260098f8fc766d595eaef8f8410a9217265f755b8ac5c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMmRhZDMxMWQ0MjZmYTM3OTM2MjE1NjYxNGQzMmEzOGQxYWEzOGZiZWIwNTRiYzM1MTkxMzIyYTIzNzBjZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkMTU0Nzk4NGY4ZWM5NzQzZjNkOThkN2MwYjkyZDI1YmE5OTgzMDg0NmIzZDQ1ZjAyNzQ5MjNlM2UxYjFmMzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_834ce25ced2b4788831d254b8b9597e3",
+      "statement": "The CLI package version is read from package.json at runtime via createRequire rather than hardcoded, so a version bump can never drift from the CLI; package.json declares three bin names (hermes-profile-manager, hermes-pm, hpm) all pointing at dist/cli.js.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L14-L19",
+          "version": "repo-lines-v1:sha256:d144c6bc7e181f4e83f7cee2297f4a63ffa5797bbb837fcffd15185b5b957a0c:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg5M2Y0MGUzNzgxZWI4OTZjODJkMDQ2YTA4MDY3YTExZTM1Y2RmMmYxZGZhZjI2ZmVhOTBiOGRiNjY3NjQxMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRjZWUzM2QzMjgzYTdlMDNkY2ZiZDUwYzEwMjEyYTAzMDY1MTkxOGQxMDcwMjBlNDU3ZjhhMDk4NDkwYjg4ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTVkODVjZDkyNTk0NzljMDA1MjljZDZkZjA4ZjlhODk3ZTJkN2QwZGJiZWU1NWE1NGU0NThlMjM3ZTUxZWY3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWYxYjc1ODE2Y2UxMzA1NWRjODhiNjZjZjBmZjFmMTc5M2I0Nzg5YmEwZmMwOWJjNDhhODViYWEwNzQ0MjZhNiJ9"
+        },
+        {
+          "resource": "repo://src/cli.ts#L20-L22",
+          "version": "repo-lines-v1:sha256:e15c56e8abb22e91905e3f73690a0f132ad94baf606ce35ded92b8fef23cd1c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTRmODc0NTczM2Q4YmMxODJjZDcyNWVhYTY0NjdkMGJlNGZmNjkwOGU3ZmNjMDZjZTMxMjZmOTljNjVkMTI1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDI0N2E2NTQ5ZTdiZGViNmQzMTA4MDdhODU4YjM1MDZmZWE4MjNlZjc4YTU4OGZhNjU5MjI5YzhmYjUxMzMyNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTQ3MjA5ZGQ3MmY2MTczOWVjNmI4ODRhYWVmNTlmYjllYTM1ZmZjMzNlZDUwMTcxNDE2MDMwMzdlOWQ4YWQ3NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTgwMTM2ODYwMmJhNjY0MDdkNDgwZTQ2Y2ZiY2MyNzBiMDYxMGVhM2MyODhhOGNkNDAxOWQzZGYyYTg0NzMzNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_03f45f8f338a4db08302657e953edf0f",
+      "statement": "The managed workspace root is the directory containing profiles/common/, holding the shared base sources (common/config.yaml, common/SOUL.md, common/skills/, common/plugins/) plus one directory per profile with user-owned *.custom.* sources and compiled outputs (config.yaml, SOUL.md, cron/jobs.json).",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L49-L61",
+          "version": "repo-lines-v1:sha256:d5939f0e34e69cd9d3767db09797b5f07a2add20efb3b22325222c92e684fcb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3OGQxZGU5MTA4Yjk1ZTYzOWJhYzQwNGU3Y2U2YzA0MmFkYTEyZGIxNDBhMDdlMmJjYTNlOGQ3N2U4NWUyY2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzA2YzU2MWQ1YzMyNzM0MzY4NTI2OGE0NmIzMzkxZjM5OThlZWU4OTBkMmJlNTFmMGQyMWNjNGE1M2FlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhYmM5YmU4YTBhMTUxZjc1Zjg3ZTJmZjU0MzU0OWM5NGRkYzJkODE1Y2RiYzI0ZjMwMTFjYmY4MDAxM2Y4N2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        },
+        {
+          "resource": "repo://src/core/init.ts#L77-L79",
+          "version": "repo-lines-v1:sha256:e53fe94c548cbdf4774d226af4d169792a83669a2e21e2b2158b6730d1e95874:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjI3ZTE3ODk4ZjQzYzg4OTFlYmI0MTIyOTE1ZjYzZTI5NjZlNzg3Y2M0YmU4YTVjNjg4ZDI2MDhmYWU2YjVkNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ZTZiY2ZjMGMyZDY2NTc2NzUxYTk5ZjM3MGQxZTY2ZmM4YzdmMGMzZmNhYmY5NGExYzY2MDU1YmFlYjU4NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDIzNGQ5MTg4YWY1MDQ5NDU3NDFiNGMyYTA5M2RlYWNlOTViMmRlODAzMWU5NWRkMTI4YjEwNmM3YjliNGNmMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzkyYTJiZjhiOGM1NGI0Mzc0Mjg5YjMxMmFiYmI5YjRlY2ZmYjJiMzYwNGNlYjJkYmYzNmMyYWI5N2UyYzMzMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_55e6eaeb3d694bd3bd3b8cfa4451acde",
+      "statement": "The name 'common' is reserved for the shared base directory: profile discovery excludes it and validateProfileName rejects it as an explicit profile name, because treating the shared base as a regular profile would make a step self-merge common sources onto themselves and self-symlink shared skills/plugins.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/fs-helpers.ts#L135-L144",
+          "version": "repo-lines-v1:sha256:75bdab87051d0b127714d39e634fce3277697e8132d6a474a05c4356c3ff7365:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlZDM1ZjA0MWI3YjI2NDc4ZGIwOGViMGM4ZjJlOTAxZmM3ZGI0OWJhZTJlNzFkOGE1MDQ5ZmRmYWViMmY5YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyMWRhMjVjMjgyOWQ0Yzg4MmM5MmEyZWNkNDFhN2ViMDIzOTdmZTg1ZDUyMzBkNTBhMGJjM2QwNDZlNzNjNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/utils/profile-name.ts#L18-L26",
+          "version": "repo-lines-v1:sha256:d8a918c9d3ad35c46fd1baaab6e66d4ec97af3e9e8d16ca6b26db2d977de5278:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWE3OWQ2YmJkM2JkNzllMzQwMjk4ODBhMjdmNjA3MjQyMWUwMzRjZTEzNWQyMjY5MWU5YzBjOTQ4M2JiNTYyZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjVlM2U2NDdlNDMxN2EwY2RhYjI3ZGQyM2I3MGMzM2RhZDI4M2RlMDUwNWVjMzNiZjliOTY2YmRiNWZkNjA1OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWZhMTIwYTg1ZjdmNmRjYzUwNzE5MjE4MWYzZDUxOWZmMjAwMDkxY2M1MWVmMDVmZTIwMzU5OTk5NzBhYTE0OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWNlMGE1MDFjOWYzZDQyNjAyMjNiOTgwNGI2NmYzZDAzYzk2MzRjZDZkM2UxOTBmNzU3MWRmMTRjZWM0MWU5NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_63cf36ee9d82448f85dd6faaa51cb240",
+      "statement": "mergeJobs feeds a previous run's jobs.json output back in as the base and deduplicates id-less jobs by canonical deep-content equality, making the jobs merge idempotent: repeated merges never grow the jobs list (f(f(base, custom), custom) === f(base, custom)).",
+      "evidence": [
+        {
+          "resource": "repo://src/core/jobs.ts#L99-L131",
+          "version": "repo-lines-v1:sha256:433ea51dee797ca13e8328b9f1a9032dc73457132a2ae35c8f1cb1b4975464a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjNWJhMjU5ZGFkZDdiY2M4NjcxM2QzNDhjZjE5YjFkM2Q5OTE2OWQ1NjY2ZGE4OTJmZWRkMDc0MWFmNzNhMzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjOGZlZjMwZmI2MWNkNDk0NWMzMmFjMTNkYjEwNzMzZTMyYzg0M2MwYWI1OGE4ZWM4ZWNmMmRjZDhiODBhMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3OTI5ZTkxZTBmOTljM2U4MjVkZTY5YjQzNWZiNjQ4NGQxYjBhMWRmMmY0NjU2MWFiZjFhMjlmMDQxODhiODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3MjZkNzNhOWU4N2U1YjU3ZjU1M2FhMGM4ZjdlMDI5OTdjYzBkN2RlZjI2MTczMjQ0Yzg0N2M0OWNhNGRhMTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_88de6dba497141a7961b92908cc1bd45",
+      "statement": "Per-profile merge failures are recorded as MergeStatusResult entries with status 'error' inside the returned arrays rather than thrown; 'skipped' entries (a profile with no custom source) are an intended no-op and are not treated as errors by collectMergeErrors.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/merge-results.ts#L6-L37",
+          "version": "repo-lines-v1:sha256:4cf14c379a34bdc09639cd251fe53409ec16d07ff6c6472898ad7412b4626841:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlNDBiNzFhMWVhY2M0NWJhMzJkMjY1NTRhZDU2YzM4YjdlNTlkMDI4NDJhMjYzMTAxZTQwYmU2ZmE2ODFhYTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3MjIyYmY4M2Q1ZDkxOGQwNzc1NzhlNTMzOTQ1YTQxYWFjMGFhM2I0OTZiNjQyMWI3MzE0MTYzOTgyMDgzZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f0a53b93fa7c4d40b9d8c26bdb6a9fc7",
+      "statement": "mergeAll wraps each sub-merge (mergeConfig, mergeJobs, mergeSoul) in its own try/catch and captures pre-profile top-level failures per step into stepErrors, so a failure in one step (e.g. missing or non-object profiles/common/config.yaml) does not abort or suppress the remaining steps.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/sync.ts#L81-L107",
+          "version": "repo-lines-v1:sha256:f78240f08e9233a3dd249c906b587eb45a2a25301f3085a1c08ff06709f8e446:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlMTU4NjA4NTAxMWFlNGU0OTVhZDFhYjQ4NDljODdkM2UzMDI5Y2QwYThhY2Y5NGI2NWExNTEzY2RhZDIxYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3OTI3YzU4NjFmMGEyMWJhY2FmMTIxMGExNjVlNzk1MTgwNTQzMzhjYjI0ZTAyZTAzOTY2OWYyY2VmZjk4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5MTU4ODI2ZjRlMTVhYzg3YmQ3YTRiZTA0MWYzNDQ2OTU1YzZhZDUxYjRkOGM0ZDAzZTBlNjNmMDBmOTNiOTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f6e58ee02de84762aa99ecc3f83fe425",
+      "statement": "syncAll never throws: link-step failures are captured into linkErrors, per-step merge failures into stepErrors, and the deprecated syncError field holds the stepErrors messages joined by newline whenever any step failed, kept for backward compatibility.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/sync.ts#L147-L171",
+          "version": "repo-lines-v1:sha256:4d5f54f28872d67b7f07e01471951d407c270c15075a98a29a95ef7286f0f3b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkZDEzZWViMTZiNjIwMThhNmFiNDNhNTM2MzZkMTkwM2YwMDFlMGU1MjBlOGY3NzAzZGFiNThkMTZiMDYzNDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2YWFiMjViNGNiYTVlNjM3ZTY4ZDM2MzRiYzI5MjY1N2Y4Mjc1M2VmMDNkMGZkYjhiYzlmYTVmMDY3OTY1MTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/core/sync.ts#L49-L64",
+          "version": "repo-lines-v1:sha256:96e75acfca42c77e69b7a8bddd16716c1f88506dcad51377d8a76dd4499b64a4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyODY0NmQ3NTZjM2E4ZmMzMDAyMTBkYWNjMzQ3NDU1OTU4YzQzMzU3MDdhMWQ3MjQzNjIyYjExYjYxMzVkNTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjViOGFkYmM2OTE1M2JjMWI1NDZiNGI3MjAwNjVlNjQ2OGFlYjUxNTA5MTQ1ZDZhNzkxY2ZhODAyNTI3MmM3MWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMjRhOWJkMjBhODRjZDc0MDRjZGViYmQwMjIzYzA2ODMzMDBlNTA1YjY4ZDk2YmRkM2ExZWY4NTc2NWNhODAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_237137aa7e8d4502b07b2359525362ba",
+      "statement": "initWorkspace is the one aggregate that throws: plain Error with an 'Invalid profile name:' prefix for name-validation failures and the typed InitFilesystemError (carrying targetPath and operation) for filesystem collisions; the CLI init handler branches on that type so a filesystem errno is never mislabeled as an invalid profile name.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L334-L345",
+          "version": "repo-lines-v1:sha256:4e8ffbbf7a260310570ea637541cf76777883454271eff18497e2f9deddbb2e1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlNjdkODRiNjNhN2M4N2IwYmM1NDNkY2NjNGI4YTJjNGViZjg3YTdkYzA0MDNjMTE5MWY5YjIyOTkzNWYxMjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1M2JiNDFhZjFhYzY0MWE4ZjY2NWIwN2UzZTY5MGExZmNmYmFkNjdjOTZlZGViYWE3ZWE2ZmUyYzBlMmEzM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1NDJhMTllYTQzMTI3NGI3ODVjNzkzMGM0ODE3ZGMzZDhlZDA5N2Y4NmU1ZjA4NWUxOWQ0MDZmZmU0N2NmYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkYjNlYzk5MzRmNDJjNmI1ZWZjOGIxMmUyYjFjYzI5ZjUwOGVmNzNjZDkzNWFjOTg0ODU5ZWI3ZTg3NmUzZjkifQ"
+        },
+        {
+          "resource": "repo://src/core/init.ts#L39-L51",
+          "version": "repo-lines-v1:sha256:7deddeedff5d472a8d62cb649784854d839099d3bbba743da8f2c3d09919dce8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyOWE5MWMyOTE3MGNjMjBhNGUyOTc0ZWIwNDE4N2FmMDM2NDJjMjVjNjIyZTBhNDQxYjllMWQ0NjViMWRmNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2OGU4OGU4NDE2Y2U4ZWFmNDk5Yjc0YzNhNDc0MjE5NjUzYzk0NzAzZmIzMzIwNjg4MDg3NTA2NDUxMzYzNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkNGYzM2JiZGEyYjE1ZTNlMzIzOGQxZDQxNmY1OWQ5ZDU4ODgwZmU1ZjVjZTM2ZThiOWEyYWI1M2EwODk4YjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f552e6a909294e3abe35d60ccaff6415",
+      "statement": "validateProfileName enforces the allowlist ^[a-zA-Z0-9._-]+$, rejects empty, '.', and '..', and rejects the reserved name 'common', before the name is used in any path construction.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-name.ts#L36-L49",
+          "version": "repo-lines-v1:sha256:1e9a339a48637066629955a4a7265200bcbd49f67e1b42c0960a788a2bfa2923:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhN2NjNGY5YmRiNzA2NGQ2ZWY0MTA3MDE3MDYyNzI4MDFlOWYwZDc4NTlkMzc2NjZkMzQ4ZjVlMjk1MTJlZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMTM4ODhjYjgyMzE0OGNhMzQwNjEyYzIyODQwYjJhNGMyMmQ2YzZjM2I2ZTNhNmFiNjExNzdiM2ZiMjA5ZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyODE2OWVjN2NjNGY2OWJlZjZmMDJhZjA2NzNhMDk5ZTAyZmVkN2YwNTg4YzRhNzllZWRlN2VkZjc4Mjg2OGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b0aef545e714f5aaab9f05615d704d8",
+      "statement": "validateExplicitProfiles validates every explicitly targeted profile name (the global -p/--profiles option) before any filesystem access or side effect in every merge and link step, because user-controlled names are a path-traversal vector; discovered names from readdirSync need no validation.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L55-L58",
+          "version": "repo-lines-v1:sha256:b8a7efb6d2a0a5777f1564fc8f6aa876bb643dcd6ba71a3d14bd2cd307b15245:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjNmOWU2MmQ4MGFkMjkyOGU4ZGJjOTgyYjBlZGExNDFiNGI5ZDhiMzIxNTgyYzkxYTU4OWE5OTcwNTNkMzZmOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWMzZDMxZGMwZDU0ZDM3MjEzNWQ0Yzc0Mjc2NDI2MTAyN2ZiMmI3ZmE0MGNiYmMxZjAyZTU0MWZhMzUzNTZiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTkzYmY4MzNkM2NlMDJiYTRkOGJkZTMxYzY0NzdiMThkYzRlMjE5NWY3NjlkM2JlYjc0NWQwYjU5YTQ2MTg2YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZmNDE4MzFmYWE3ZDgxNjg4Y2QzZjcwNWNjNjEwZDc2YzRmMjM5ZTRlMGI0YjQ5NDA4YmI5NzE3N2RlZjllNiJ9"
+        },
+        {
+          "resource": "repo://src/utils/profile-targets.ts#L43-L47",
+          "version": "repo-lines-v1:sha256:256beea036492ce2d99f00fa1222a4c808416d2a755caa734cb220482340e4d9:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGMzYWRjOWVkY2M3ODcyZGEyM2E0ZTU1ZmJjMTM1N2M2ZmUxYjkwMzYzOThjNTExNzE3YTAwZTY4ZmUwYWNlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWU4NzFhYmVmODcyYmE3YmNkMmQ4YmM5NmFjNzgwNzgxNzRjNjBhYWU2MjY4ZTcxMjA2M2ExNWFhOGVhZDA1NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDdmMDM3MDkwZWUwNGNmMGE2OTVhYjQ0MjE4ZGI2YWJkMmNmOWIxODIzNjczYjY5MTA3ZDU3ZTYwZTE4MjA3YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9ca007bc799f4be2b44f5b22e1e16ae6",
+      "statement": "assertProfilePathInWorkspace is defense in depth: it asserts the resolved per-profile path stays strictly under profilesDir/ and rejects any path targeting the reserved common directory, catching future path-construction changes that bypass the allowlist.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-name.ts#L58-L76",
+          "version": "repo-lines-v1:sha256:bcb3b2267e0550b9d5f6d998a5573fdb3ef7b051137f7e06b6fb3113a212ae12:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyOWY1NjViNzM4YTVkZTU1NTAxMDliNWZkMjFlNWQ1ZGRlZWU2YjUyM2I3NzMyNWM1ZDkyZmJkNTRiYjZkMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljMGYzODc3NzEzNWQ2NTY2MjJjYTM2NGJmMGU1N2QwNDc1M2E2NjRmNTk3ZDllOTA4MTA5Y2ZjODE5ZmE4MzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwNjRkYmY5N2I5ODFmNjg1ODc1NDg2NTNkNjM5ZmYyZjkyZjc0MmEwYzE2ZjQzZjBkZDdkM2VmM2IwMTRmMWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4c51e26cb40d4f9ab36038f28c4127ef",
+      "statement": "assertPathInBase guards the Hermes-home half of the link steps: the ~/.hermes/plugins and ~/.hermes/profiles destinations must stay strictly under the configured Hermes home (--hermes-dir / $HERMES_HOME), closing traversal via a hostile base-directory value.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L173-L175",
+          "version": "repo-lines-v1:sha256:d15772a648ef706b0d020b362aef5b94596ca8f00f130293bdf73f81b531e879:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDQyOTIxMzg3NjMwMmJmZWQ5MDIwYzc3ZGEzYzZlM2E2OGYxYmY5ZWMxNTkzN2E2MzFiNWNjOTZhNjVkOGRjNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBmNmJkMTE3YzkyNWExNDA0Zjk2NmI0NzQxNTRkZDBiN2E5MDE2MjA4MjQ3ZDU4MzlmYTVmOGQzNDM0ZmYyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY5ODdkN2JlYTkwMzE5ZTRlNThkYTc1ODc5ZWU3NzBiZjk1YzU1MTBlNDk2ODUwYzRjMDVhZGJlNTU3NjViMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjA1YzBiN2Y1ZWU2YjUyOWM3OTQ3NDMwZGJmNDk1YjBlZTYzZjFhZTUzOTFiZDAzMDRjNTZhOWU2YTg2YWI4NyJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L219-L221",
+          "version": "repo-lines-v1:sha256:69ef2bb8facd3d17cdfc92afffb0e61c41d35c004959e9ede37ebf940e332150:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2NkMTdhM2NmYmIyYmQ3N2E3YWQ2NGQ3NGI5MDRjZmFiOTAzMDZkMjk2MmZlM2EwOTUxMjE4YmI4YzEyNWEzZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTQ5OGNlN2QxZmU1NTliZDJiMGJhNTMzMGRjY2M5OWQ1ZGFiM2ZmZGRhMDIyMzgwN2Y4MDAxNmQ5MjAwOGNhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2NlMWUyZmNhOGZiMjc4YzIzMmM5YWY2MGFmYTRmZWUzOWFhYzA2YzE1N2Q0YmM1YTIxN2QwMGVjMTk5ZmZlOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzY4MjljMjZmNDhhNGZjMjJjNzFjODdlN2M5ZTVmNjYyMjc5YWViODJjMWUwOTBjNzUwMGQxZTU0YTc1OTQyNSJ9"
+        },
+        {
+          "resource": "repo://src/utils/profile-name.ts#L86-L94",
+          "version": "repo-lines-v1:sha256:8d6477edc966e1cc2b2940ed8f16d7fd737b4e1e02249c2e8152f4b9df33ca69:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ZmZGZmZjU1ZTliZjgyNDNkOTdlMGNiMzhjMTI5ODM4YjU4MjIzOGUxYjk3ZTRjNGI0ZGQyYTUyZDc5NmZjOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODc5NmE4MTY0M2Q4OWE2MTJjOTE5NGE4ZjI4NGZkNTQzMzY3OGMzZDdhYWMxMjg5NGYxOGMzZjY5NDcxNmVmZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c30a4e751df84964b975c185c9ec16e9",
+      "statement": "atomicWriteFileSync writes content to a same-directory temp file and renames it into place, so an interrupt never leaves a half-written config or jobs file.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/fs-helpers.ts#L7-L24",
+          "version": "repo-lines-v1:sha256:9ee3a43332aa43d00306b4719fb16e90772f34b05c3f94f25d63409724649b98:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlMmFmZWRkMzY2YzdkYTZlOTg1N2Y3OGMxOWE5ODY0Yjc5MGY2YTI4MWUyMTM2MTk1NGVkMjJkZjMwZGVhMzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4ZjU3M2FhZjVmMTRhOWU0N2JiOGM3Y2U5NzE5YTE2OGUxZWM1MzEyMzcwOTg3YjVjNDM2ZTIzMjIyOTU1ZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3MTMxZjExYmRhOWZhOGRjMDVlN2JiNWIzZDcxNzM1YzM5YTFmNzZhMTA5NDRmM2E0MjRiZDEzZWNiMDZlZTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_38ff5a14701b4ff7b3ff815bf0339b36",
+      "statement": "ensureSymlinkSync is idempotent: it is a no-op when the link already points at the target, replaces a symlink pointing elsewhere, removes a plain-file collision, and NEVER deletes a real directory occupying the slot — it moves it aside to a <path>.hpm-backup.<timestamp> sibling and logs a warning.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/fs-helpers.ts#L45-L75",
+          "version": "repo-lines-v1:sha256:8995bda8ae73c322a8875a1eb1a693f3ed14803c65e855cfca5858905807f17d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4Y2QzNGQ4YTEwNThkMDRiYzJiMjQ4ZDY0OTQ5MDY3MzIzMmNiNTUyMTE1ZGUxOWU4OWI0ZDhjY2FjYzA3ZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzNGNlNzdmMjVmMzUzNzE4NzE0ZDlhZjJjYmU0NDA3N2ZjODc0NDA2MDgzZTU0ODczOTg0NTQ4NDc5YjUyNmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjNjgxMDM2YTJlYzliODhmNWE1YTY4YzBlYTViMTQwOTgzZDA5Nzk4MTEzZWE2MmYzYzY4MjBmNWE4NWFhOTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ea6f6a63b3fc4ecea95ccb329a9519ac",
+      "statement": "pruneStaleSymlinks removes only dangling symlinks (left by deleted/renamed common skills or plugins); real directories and regular files are never touched, a missing directory is a clean no-op, and the step honors dryRun by logging 'Would remove' without touching the disk.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/fs-helpers.ts#L103-L130",
+          "version": "repo-lines-v1:sha256:2f7f9df114b17d9c69744460454d1a9ba58faaef7d87678db0a8b7cc86d0b477:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhMjcyMTAxYmJiOGJhM2ZkZGZkNzk1NTM0MGVhY2Q3NGQyZWMxNmQxMTBiNTVjZTMxODc3NDYzNmYwNTY3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiNmE3YTBkYjhmNTNlMmY4N2YyZmM3Mjc5ZDE3YTg1NmNiNzc5ZjU5ZWViODNlYTViMGJkZjlhNTZkZGI0ZjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyYTY2ZWIyYjNhYTFlMDVhZDFlOTIwNDE2OGFkMWEyMDNjOWI4OGFjOWRiYTY4NzhkOGM5OWEwMTc3YTI3OTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5c4274867ce041d2928939507467b467",
+      "statement": "findProjectRoot walks upward from the start directory to the first directory containing profiles/common/ (falling back to the start dir); the CLI treats an explicit --root as authoritative and runs the upward search only on the no---root default path, because passing a user root into the search used to silently redirect to an ancestor workspace.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L38-L44",
+          "version": "repo-lines-v1:sha256:0c24f6078e9c3fa3808ddf7c0b89ea6476c7c674e911616d921884632dba8efc:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2E5ODExMDlhMzI0MWVhNGQ5OTZhMmIzNzU5ODYzODY5ODk4Mzg3MjFiODc4M2IzNjQ4ZTFmZGYyZTMwZjQzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWRhZWU4Y2Q3ZTQzZWNkMTQ4ZDE2NTA4YTU3Y2Q0MTVmNzhmODIzYTA4Y2VmYTE2N2JlNmY4YWNkNzRjYTlhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTg4YjJlMTIxY2UyNTE1YzVmZThlNGU1ZGVmMzRmNmM3NTYxODJhNTcwM2FmODU0MjNmNTg4MzMyYThlODcyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjkxMDYyMmE3MjE1YTY3MTYyZTBkMjQ1Y2MzZGU1OGJiY2E4NGJkMDZiZmJjZDRmNGVjZjU3NzdhZWZlNjg2MiJ9"
+        },
+        {
+          "resource": "repo://src/utils/root-finder.ts#L8-L26",
+          "version": "repo-lines-v1:sha256:9a518f9adbe7b595ff91e0db651436a0f47356de6d275855e54a9fbe0285a9ff:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzZjJiOTRmMzY3MjQyZWRkZDQ5MDVmZjI2YTBmYjQyNDcxYTFiYmNmZTNmYTRkNDdhZWQ1YmQzY2Y4ODk3NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxYzhkNzE3YzA1OWViNDY2NDliMDllNWJmOTNjN2E5YjYyOTU1MDMxYWRmNGZiNTEzNjEzYWQwMmFmZTVlNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b5593be3845f453dbca16459dbdb096d",
+      "statement": "Every step honors dryRun with no writes and preview-phrased log lines ('Would merge/link/remove ...'), and the CLI dryRunBanner prefixes success banners with 'Would ' so output never asserts a side effect that did not happen; init --dry-run also skips the initial sync because its sources were not written.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L117-L119",
+          "version": "repo-lines-v1:sha256:4fc33a719891fede783f8e71370524cff4c97c06b5ee916ddccc2eab5275f1e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDM0YzVmYWRmMjRjMDIxYzM5YWMxNWUwOGMzNTM1Nzk4NTk1YTFjMmRhOWZjOWUxMjU3NTIxZmY5YzdkM2I5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGQ2MTk2OWJhNzBhOGI5OTViYjI5ZTMzZGNhNTJiZGI0MzM5NjYxNjQ0YzJhMDI4YzlhYWZmMDIyMzliZGRjZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDNmYWRiNGEyMzQ1NDkwMGU2MjhmZjFkZDQ5NjIxZDU1YWMxZGFkM2I1NmRjYTBkNjFkNTIzMDE5OWU3MzIyMSJ9"
+        },
+        {
+          "resource": "repo://src/core/config.ts#L143-L149",
+          "version": "repo-lines-v1:sha256:8583c68f0879538fb9b463257f84d85bedc2c28b2c98e7efb222eb98f1ca6a11:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODU0NDE2MjZhYjM4MmM1MWQ1ZjZlMDk5YTY1MDUxN2U2ZmI3YzJmYTI3YThiNzY1MmNiNzcwNWQzODBmMjI2ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWU3NWM3MGQ5NDYzNjI1ZTEwNzlmZDhmYzhlZTYyYWQyZTkyYzQyYmVhYWJmZDg1Yjc4ZDhlMGE0OTc5Yjk0YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTQ4NTQ2MmJjNTY5NThkMzg5MGY5OWUyNzkyZWQxN2U1OTdmYWYzODdlMWI2MmE1ZjQxY2RlMTZmZjJiZmE2NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTMzYzczNGY5ZjM1N2YzYmQ2ZTExNzI3N2JmNjViNmE5ZDg2ODJkNWM3MDBlZjk2Yzc1ZTc1MThiN2U0NzM1MyJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.6.0",
+    "at": "2026-10-01T18:53:53.575Z"
+  }
+}

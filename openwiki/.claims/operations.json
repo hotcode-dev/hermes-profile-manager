@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:657248b67c9dc6e369b252e644f92395fd50bb7a344b227ac651158962785ea1",
+  "claims": [
+    {
+      "id": "claim_e17d1e64f4634fe7a1cbcfd8e483a727",
+      "statement": "The CLI is exposed under three bin aliases (hpm, hermes-pm, hermes-profile-manager) all pointing at dist/cli.js.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L14-L19",
+          "version": "repo-lines-v1:sha256:d144c6bc7e181f4e83f7cee2297f4a63ffa5797bbb837fcffd15185b5b957a0c:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg5M2Y0MGUzNzgxZWI4OTZjODJkMDQ2YTA4MDY3YTExZTM1Y2RmMmYxZGZhZjI2ZmVhOTBiOGRiNjY3NjQxMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRjZWUzM2QzMjgzYTdlMDNkY2ZiZDUwYzEwMjEyYTAzMDY1MTkxOGQxMDcwMjBlNDU3ZjhhMDk4NDkwYjg4ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTVkODVjZDkyNTk0NzljMDA1MjljZDZkZjA4ZjlhODk3ZTJkN2QwZGJiZWU1NWE1NGU0NThlMjM3ZTUxZWY3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWYxYjc1ODE2Y2UxMzA1NWRjODhiNjZjZjBmZjFmMTc5M2I0Nzg5YmEwZmMwOWJjNDhhODViYWEwNzQ0MjZhNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4daff577c3724bdc9de967174280d77b",
+      "statement": "Global options -r/--root, --hermes-dir, -p/--profiles, -d/--dry-run, and -q/--quiet apply to every command and are resolved in getOptions then threaded into the core functions.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L30-L34",
+          "version": "repo-lines-v1:sha256:245ac964f1c9c9f2999e2b088ffd4d31fd0031ffc7ddea995bca87657dd4ef14:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmQyOTkxYWY1OWRlYTZjYmRiNjc1M2FhMjdkY2ZkZGRkNjAxOTVjYTU3YzdlZmRlZjM0MGI3NDk0YzBkN2EyZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQ3Mzk3YjdhZDA3NDE0MWVmNGMzMTU2NjJhMDI3MzMzNDcyNjQ0NWZmOWUxNDEwZmIwNTE3NmE3OWNiNTA2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzhkODYyNTIzOTBlMzljYTAwZjFkMDRkY2M0OWY5NTQ2ZmZkZWE0YzhhYjAyOGZmNzY1MDQ0ODhmNjAyMDM5MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTg4YjJlMTIxY2UyNTE1YzVmZThlNGU1ZGVmMzRmNmM3NTYxODJhNTcwM2FmODU0MjNmNTg4MzMyYThlODcyZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ada932c786404f8e94f22af66c1cbdbf",
+      "statement": "An explicit --root is authoritative: it is resolved to an absolute path and used as-is, and the upward findProjectRoot search runs only on the no---root default path, so a user root is never silently redirected to an ancestor workspace carrying the profiles/common marker.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L38-L44",
+          "version": "repo-lines-v1:sha256:0c24f6078e9c3fa3808ddf7c0b89ea6476c7c674e911616d921884632dba8efc:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2E5ODExMDlhMzI0MWVhNGQ5OTZhMmIzNzU5ODYzODY5ODk4Mzg3MjFiODc4M2IzNjQ4ZTFmZGYyZTMwZjQzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWRhZWU4Y2Q3ZTQzZWNkMTQ4ZDE2NTA4YTU3Y2Q0MTVmNzhmODIzYTA4Y2VmYTE2N2JlNmY4YWNkNzRjYTlhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTg4YjJlMTIxY2UyNTE1YzVmZThlNGU1ZGVmMzRmNmM3NTYxODJhNTcwM2FmODU0MjNmNTg4MzMyYThlODcyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjkxMDYyMmE3MjE1YTY3MTYyZTBkMjQ1Y2MzZGU1OGJiY2E4NGJkMDZiZmJjZDRmNGVjZjU3NzdhZWZlNjg2MiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_aefde68b81e54de09c0f1c91d16f0647",
+      "statement": "The init command scaffolds profiles/common/{config.yaml,SOUL.md,skills/,plugins/} and profiles/<name>/{config.custom.yaml,SOUL.custom.md,cron/jobs.custom.json}, takes -p/--profile (default main), -f/--force, and --no-sync, and runs the initial sync after scaffolding unless skipped.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L300-L393",
+          "version": "repo-lines-v1:sha256:747df67c8803fd33e5b99697bd4b4fb653a83e69c913d61c860182d57cf62daf:eyJzZWxlY3RlZExpbmVDb3VudCI6OTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYTEzYTM3YTczZDY1N2RjMGYxZTY3MWYwZGM3MTRmOTg5MWRkNGRhMTVlYzQ1YmQyYTZmODNlMDQzNDY0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiYWNmNTRjMDBmZjIyMjAyNmMxYjI2ZTU0NGZmNGE3ZDQyZmJmZmNhMjVhNzNiMWViMWZlZjE2ODAzZGM2ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjNjI0ZmNjYWMxYzEzNjEyZTk3MDJlZDIwZDc1MjYxZmVmM2UzNzhhOGE1MzI2NmEwNDM0OTVlM2Q5ODM4MGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4cde8942a3bc4c4a86881307c1529f21",
+      "statement": "sync (alias all) runs the full aggregate of merges plus skill/plugin links and takes --include-hermes-link; the merge-all alias runs the same syncAll aggregate path but is documented as the alias for sync and does not take --include-hermes-link.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L396-L415",
+          "version": "repo-lines-v1:sha256:8d1aa3f77cf67bc36426689e6fb570a6b1cd2d4f0bba50a9246382c2188ef4d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYTEzYTM3YTczZDY1N2RjMGYxZTY3MWYwZGM3MTRmOTg5MWRkNGRhMTVlYzQ1YmQyYTZmODNlMDQzNDY0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmNGQzM2JiNzJhYWE0YTUyNmFiMTJlNTY5NjFlMWZhYTBmYjg2Nzk0MmIyZDY1NTc5Mzg1M2I3NjZkYjQ5MDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyNzM4NWRlMTM4M2UxNDg0NmI0YmZhODlmNDQ2MTljMjI0MjExNDhhOWRlYTVhYzYxOTY2YmMzMWQ2NDU2NWYifQ"
+        },
+        {
+          "resource": "repo://src/cli.ts#L529-L543",
+          "version": "repo-lines-v1:sha256:f27824c7972db6d8f23ec800d3baa237381ed9e29e4d6b74231541ceb0806207:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYTEzYTM3YTczZDY1N2RjMGYxZTY3MWYwZGM3MTRmOTg5MWRkNGRhMTVlYzQ1YmQyYTZmODNlMDQzNDY0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1MDFmMmEwYWRmOTA5OTFkMTc1MTQ5MmM4N2M5ZTUwOWJhYTE3MWM1ODA2MmZkM2RiNTEwM2Y0YzdkZTYzYzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzNjU1YmRiYzY5N2E1NWM3ZThmN2IxMjIzMGY5MmNhYmIyNjU0NTM0ZDBkMmEyMWFmNGJhYjIyNjQ2MmRhN2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0a085a8470704a8d9ebb1043f22da7f4",
+      "statement": "Make-compatible direct aliases exist for legacy Makefiles: config-merge, jobs-merge, soul-merge map to the single merge steps and skills-link, plugins-link, hermes-link map to the single link steps.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L486-L527",
+          "version": "repo-lines-v1:sha256:715f4f51d029517e17f00c06ecc480d2e29d852a0a4a8b10f1c00a36b280e74d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkN2U0YWVlZjdkYTRhMzMyOGRlNWUxMDc1NjZlNTIzOTFmYTViZWZlNTY2MjVhNmRjMTg0MmRiMThjYzRmNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyMGZjOWU2N2RiMDdlZDIzOWJiM2FkMjMxMmVhYWI5YTcwZTFmNmZiYTAxMjg4YjBiYTZlNjFkN2Y4ZWU3ODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2MDljMWQ0N2VlYjk3NTJhY2NlNmZmNWQxMmZlNmZkMmVjYTdiNzg5NzY4NDNiY2QyNzJmNDY3YTQ1NjFmNmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_42e6eb0f59ce480882d248e681c51087",
+      "statement": "The CLI is the single place that converts internal error carriers into output and exit code: finishWithErrors reports per-profile error entries plus top-level stepErrors and exits 1 when any exist, while finishMerge wraps a standalone merge step in try/catch so a pre-profile throw becomes a one-line stderr error, a 'Failed: the merge run failed.' summary, and exit 1 — never a raw stack trace.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L150-L167",
+          "version": "repo-lines-v1:sha256:d46b4c80983dad89e3e1c30a3f62cf2e34d847ef0e78b50d1ada6ff3aceb16ac:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1OTNlOTRjN2E3ZDRlZmU4N2Y0MTljNjdhZDlkMjM5YTMwYzNhYjM4N2Y3Yjc1NzcyNGFiZDM3MWI1ZTI4MWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMmE2ZmE4MGQyYmU2MGE1NzRmZDAwNTRmODg0NjFiZjVlMWFlOGYwN2E4NTY3MGM0NDQ2MDc2ZjYwMzU0OWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRiMTQ5OGJlODhhMzVjM2NkOThlZjAzN2QzNTkwM2ZkMzk1YzllMzdiMDVhOTczOWUzODA2ZDJiZjgzNjg5OTAifQ"
+        },
+        {
+          "resource": "repo://src/cli.ts#L73-L108",
+          "version": "repo-lines-v1:sha256:7c97623031a8134c556fd5f868fd003d583412e7a0cefa3c331b77c88cf8c21a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiM2U1NmNkZGQ1ZGZiN2E5ODZjNGM1ZGMzODA5MzNhMzhhN2M2MjRjYjQ4NDY3ODRiYWZkNDliNWMwNTZmN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0YTdjODNmNmQ4Zjc1ZDMyNjdlYjRlNjVkODM1OTZiN2I1NGQ1ZjM1MTZlYWY2MjEwODZmOTlkNmI1MDY5OWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2MmFjNTM2Y2JjMDFhMDkzYTA3MDQ5ZGMwY2U3NmQwYWVlMGViMjA2YTdjYzA4NTFiNThiMmEyMmNhMjlhNDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_018323d0da2c4f1eaabbf91642276233",
+      "statement": "reportSyncErrors is the shared aggregate reporting path behind sync, merge-all, and init: it prints top-level step failures (one line per failing step), then per-profile merge errors, then link-step failures, exits 1 on any, and returns true only on a clean run; because nothing on the aggregate path throws, the already-computed merge results are always reported.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L187-L216",
+          "version": "repo-lines-v1:sha256:c155e13d2e5021d529f336552846c49f9703a9c70ab2fda8c9cbe83da614e74d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMDEyOTQzZTViNTBiMGZkYmUzNWU3OTFiZjZjOTk4OTQ4NDU2M2M3YTJlMmFkNjY2NTYzMGQ4Y2QzODA2ZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM2YjQ2MDUxNjJiNGI2MWU0YzFmMjkxYjIzMmI3YzVlZTM5NDFiMjg2NGM0M2U2ZDM0ZjM2ZjUyOGJkYmZiNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjZTllNzMwZjFkMDFkYmUxNmI1ZDA5NjgwYmQ0NDQ2Nzk4ZTljYjg2MDIzY2JhOGZlZWUzYzI3OTJkMmFmYWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_19fc2c581665473ca29ae5735ae71fa6",
+      "statement": "Under --dry-run every step is side-effect-free and output is phrased as a preview: core log lines use 'Would ...' wording, the CLI dryRunBanner prefixes success banners with 'Would ', and init --dry-run skips the initial sync because the scaffolding sources it would read were not written.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L117-L119",
+          "version": "repo-lines-v1:sha256:4fc33a719891fede783f8e71370524cff4c97c06b5ee916ddccc2eab5275f1e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDM0YzVmYWRmMjRjMDIxYzM5YWMxNWUwOGMzNTM1Nzk4NTk1YTFjMmRhOWZjOWUxMjU3NTIxZmY5YzdkM2I5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGQ2MTk2OWJhNzBhOGI5OTViYjI5ZTMzZGNhNTJiZGI0MzM5NjYxNjQ0YzJhMDI4YzlhYWZmMDIyMzliZGRjZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDNmYWRiNGEyMzQ1NDkwMGU2MjhmZjFkZDQ5NjIxZDU1YWMxZGFkM2I1NmRjYTBkNjFkNTIzMDE5OWU3MzIyMSJ9"
+        },
+        {
+          "resource": "repo://src/core/init.ts#L229-L237",
+          "version": "repo-lines-v1:sha256:9a6f3059e7117a9881c5e68fc0756de7591788661e28501970cda4fb121bedaf:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDhmMjNmM2JhZjczY2ZlZDg0OWZiODM1YjZmZTk5ODY4M2UyNjNmNThkN2I4ZmYxMGJiMzcwMzJhZGVkNjA1ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlNTc4OGQ1ZDlkNzNkMjRhODFkYmMwYTVhNzRiZmE4MmM5YzNiM2FmOTllNTJhZjc5NmU5MGI0NjhhOGEzZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTYxOWEzNTRlOTA0YWViNDQ0ODlhMmUwMTYwZmM2ZDA1ZTU5YWE5NmJjMmYxYTU1OWY3ZjUwNmM4YTZlYjdlOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODY4N2JiMjkwZWI4NTJjYWNiNWZiNTQzNmQ3ZDRhYTQxNTlhNDM1MmZmNmQzMWYyM2I5ZGQyYzE4MGQ1MmJhZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9c53f10af4de4ac99bb9b1c47423e6ef",
+      "statement": "npm run build runs tsup over two entries (index and cli) into dual ESM and CJS with .d.ts and source maps into a clean dist/, and prepack runs the build so npm pack/publish always ships a fresh dist.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L20-L29",
+          "version": "repo-lines-v1:sha256:7b65f4a317112f00700cb2291d9a77429e0075510297053034c0be5644389a41:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNWNkMmZiNGYzZGY4ODQ1MTUyNTViMzk1MjNmMmY4YjU0NzJiZWVhOWY1NjZmZmNhMjA0ZGI4MDI1NjEwNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4MGQ4ZjQwNmM3NzFkMGEzZjc4MjVkOWNmZWIyYzkzZTZiZjZjMDgxMTFiODZhYWY1YTM5NDM3MDEyN2M1YjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkZDkwMTUxMmI2ZDA0MTcwNzM0MTNhMzkxYWM2NjRkYjk4YTk0NzRmNWFhMjEwNTc3MmQ4NzY2MzdiODYyMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY3NmY4YjAxZDczZThiMjM4MTc4Yjg3NzEzMTY2MTMzNjI5MzU5YWJhNWFiMDY1M2VjZTE1NzUyNjQ3MDY3YzUifQ"
+        },
+        {
+          "resource": "repo://tsup.config.ts",
+          "version": "repo-file-v1:sha256:5b8e838517a64414b2ac699b15677d67a49b969ae8c7b96dc19c2c3e7fc6f4df"
+        }
+      ]
+    },
+    {
+      "id": "claim_b3856308ecbf4294bfe0b40e4f991b6d",
+      "statement": "The only runtime dependencies are commander and yaml; all filesystem, path, os, and deep-clone operations use the Node standard library, so there are no system binary requirements.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L34-L40",
+          "version": "repo-lines-v1:sha256:3947235879d709542133b74316d4b5735dfbf45b6d00b958ab9806f1060fc462:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjIzZmVmYjIxOGMyZmY3NjVmNGYwNzNjMzM0ODIzMjQ0YzI3NGQ0MjgzOTI2MTllNzlkNDFmOGQzMmI2YjRkMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGE1ZGZiNmIzOGY0NzE0YjIyYWQ1ZjA2NTk3NDcyM2Q5MjAwMjM4MDUzNWQwMGJmMmYyYmMxNzJlNTE1MjU4MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWMxZGVjNWIzYTI0NTJjODA3OTBkYmU5ZGExMWNiNDI5NDZmMDI5Mzg2OGFhNzA1OTAyM2VkM2U2ZTQ5OTZkZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTM4MGJlZmU2M2E4NDA0NmI0ZDA0OWZlMThlZjQzOWNkMjk4MzIyYjM2NmVjYmRlZDI3ZGI0Nzk0NGUwZWRhOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_71c0d4b35f2d4b5cb911ff7be1051d77",
+      "statement": "npm test runs the Node built-in test runner over test/**/*.test.ts via tsx (node --import tsx --test), with a focused suite per module including cli, config, jobs, soul, links, sync, init, deep-merge, fs-helpers, profile-name, and root-finder.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L24-L30",
+          "version": "repo-lines-v1:sha256:811d10dd59a5f17b4f32b1dbd47550dc9290b4ee63ec19701c01ec4e6332a7a7:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdlMTNkMWE1MmQ0ODQ0OGEzMzlkY2YwYjIxMmM5YWM1OWFkNzY1NGZhNDM1YTI3YWEwYmJiMDFhODExZjdlOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmZjNzljMDA3ZDEyMDc1YjRmZDcwYjM0ODYzZTYwOTI3ZTRjMGU5YjAyNGQ2NDhmZGU5MjRkNjliNDlmOGRhNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTA3OTM0ZmYxMDk3Y2FiMWRiMTNlNTYwZTY1NWJiMmJiYjIzZjNhYWQ5NzRmMDU5MDZiYzU2OWQ2NDI4MjNjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWMxZGVjNWIzYTI0NTJjODA3OTBkYmU5ZGExMWNiNDI5NDZmMDI5Mzg2OGFhNzA1OTAyM2VkM2U2ZTQ5OTZkZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_982354fcca4949a6a5d520c62b29c3e7",
+      "statement": "The Zero Factory precommit (linked as pre-commit via install-hook) formats only staged .ts/.json/.md/.yml/.css files with Prettier (style pinned by .prettierrc.json), typechecks with tsc --noEmit (installing deps first if needed), and runs npm test; the default all mode runs format, build, then test in that order.",
+      "evidence": [
+        {
+          "resource": "repo://.zerofactory/precommit.sh#L14-L66",
+          "version": "repo-lines-v1:sha256:d2f5f2f379e74a18dc87ab525c49970eee03002e08d623f523986c62430c45aa:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5OWY4ZjZlMTU5NmViMzk1NTEyMzllMDMwNTQ4Mzg5YWI5NDZjZjA3MDdhYTczZWM4ZGMzODZlZDMwMjRiNDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhZmE1YjUxNTYxZGZiMWNkZjAyMDNiNTljNmQ3ZTNlNTM2Njc1OGU4NTVlYTg4YjVlYTA4NzM2ZTE3N2JhYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgyZDAxMGM3ZjU3ZWE2NWViMzQwOTg3Nzc0MDFlMzg2ODgxY2Q4MGRjNTg0OGEwMWVlMTAxNGYyMzI0NzlkODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3ZGU1YjVlNjc4YzIyOWQzY2MzMjcxZmQ1ZGY4OWYyMjVmYzQ0NWRiMjkyNTU0NTcyNDAyMmJhNzgzNGY0YTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_88e483f772114392abfe176dcb0c0e3f",
+      "statement": "safeLink wraps the single throwing link functions (linkSkills, linkPlugins, linkHermes) in try/catch to convert a failure into a one-line stderr error and exit 1, while finishLinkErrors reports linkAll's captured linkErrors (which does not throw) and exits 1 when any link step failed.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L251-L261",
+          "version": "repo-lines-v1:sha256:fab21be4fbb82d9bab4dddf342e0018cdc522c275325fa24d551152292fa1da3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhMmU1ZDFlYWQ1NDhmNWUxZDE3MTViY2Y2YjQyMjkwOTY4MTJlNjc5OGIyOTYyNGEyZjQwMGNmOWRhYzAyODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzMGU4NGJlNThlYzUxOGJlNjNjZTg4MWIxMTJkNGIyNDA4MGMyYTRmNmJhZjZmOWY0Y2QwOTcyZTk0YWM4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxZGM0MmNjNjAxMDg1NDUxMjBhZGJlYjIyNWUyOTJiM2UwNGFiNTNkNjUxZGY3MmIzNWFjMzY3NjcwOTczMDIifQ"
+        },
+        {
+          "resource": "repo://src/cli.ts#L272-L283",
+          "version": "repo-lines-v1:sha256:f1352b03cd657339382360989a37fe00c21cf992db6be57026a14a42d3467ea2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4OWE1MTMxODZmYWQ1YzU0YzBhNzAzNDhkN2YzYmEyNTlkMmVmZjRhYTZhY2VhOTdlOWI4NTNkMzRlYjUxZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5MjY0MjVmZTE0MWUxOWM1NGY3YzljOTk1MmM2ZjljMDhmMWYxNjAwZjVjZGZkZjk4ZGI1YmY5ZmZmYzliMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjYjFmMTcyMjQ4ZTExNzU0MjJmNGVkYTJkZTU2NGUzOTJmMTQ0MGIyZWQzNWVhNzFkNTg2OGUwNzQzZWRkMjcifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.6.0",
+    "at": "2026-10-01T18:53:53.575Z"
+  }
+}

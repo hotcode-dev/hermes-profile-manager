@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "pages": {
+    "/openwiki/architecture.md": {
+      "pageVersion": "sha256:8c7a981b3179255a2e7ed7cfd309a4f578a71287ba9fc0715f071b7bdf54412a",
+      "completedBy": "hermes",
+      "completedRunId": "8bce6c3e-876f-4111-ac28-8a2b3e1a3ceb",
+      "gitHead": "c31dd2e5eb1244f032cb2e21429d0da99ee9ac97",
+      "sourceFingerprint": "sha256:53b14d690eea3cca530edd5217e469dd220cd361d634eec3c02b7012a8663a33"
+    },
+    "/openwiki/operations.md": {
+      "pageVersion": "sha256:657248b67c9dc6e369b252e644f92395fd50bb7a344b227ac651158962785ea1",
+      "completedBy": "hermes",
+      "completedRunId": "8bce6c3e-876f-4111-ac28-8a2b3e1a3ceb",
+      "gitHead": "c31dd2e5eb1244f032cb2e21429d0da99ee9ac97",
+      "sourceFingerprint": "sha256:53b14d690eea3cca530edd5217e469dd220cd361d634eec3c02b7012a8663a33"
+    },
+    "/openwiki/quickstart.md": {
+      "pageVersion": "sha256:52f736f91f0a4868e21d12a8a07f4c989d35f6aeec6a85f1ee3666522557d044",
+      "completedBy": "hermes",
+      "completedRunId": "8bce6c3e-876f-4111-ac28-8a2b3e1a3ceb",
+      "gitHead": "c31dd2e5eb1244f032cb2e21429d0da99ee9ac97",
+      "sourceFingerprint": "sha256:53b14d690eea3cca530edd5217e469dd220cd361d634eec3c02b7012a8663a33"
+    },
+    "/openwiki/subsystems/linking.md": {
+      "pageVersion": "sha256:b15d8dccb4806cf41975540b5cc95a15b2d356997412daef4a48477fa1942d5b",
+      "completedBy": "hermes",
+      "completedRunId": "8bce6c3e-876f-4111-ac28-8a2b3e1a3ceb",
+      "gitHead": "c31dd2e5eb1244f032cb2e21429d0da99ee9ac97",
+      "sourceFingerprint": "sha256:53b14d690eea3cca530edd5217e469dd220cd361d634eec3c02b7012a8663a33"
+    },
+    "/openwiki/subsystems/merge-pipeline.md": {
+      "pageVersion": "sha256:c06f35817da97632e9f61de4b8652182ac481070805111dcefb6ad719ac0fa62",
+      "completedBy": "hermes",
+      "completedRunId": "8bce6c3e-876f-4111-ac28-8a2b3e1a3ceb",
+      "gitHead": "c31dd2e5eb1244f032cb2e21429d0da99ee9ac97",
+      "sourceFingerprint": "sha256:53b14d690eea3cca530edd5217e469dd220cd361d634eec3c02b7012a8663a33"
+    }
+  }
+}
