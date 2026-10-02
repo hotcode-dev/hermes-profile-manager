@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:52f736f91f0a4868e21d12a8a07f4c989d35f6aeec6a85f1ee3666522557d044",
+  "claims": [
+    {
+      "id": "claim_cfa0c9f8e5c44fd8bfcdf042d14048d6",
+      "statement": "Development uses npm install for deps, npm test to run the Node built-in test runner over test/**/*.test.ts via tsx, and npm run build to compile dist/ with tsup.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L195-L206",
+          "version": "repo-lines-v1:sha256:eedb5f7daeb8ed1eee219275802676f73f0817c69a79fdfb1107dfb1463dbe9c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwZDI5ZmY4NWU3NzMwY2FhYmRmN2VkZWM4NGYwNjgxNmIyNGFjZmFkNzdmNmQyMTNmZDcwOTY5ZWUzZTZiMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2ZGUyOGZmMDE3ZWZiYTY1ODdiNjJmMGNkZDlmMWFmNDI1NGFhMjU1NWQwZTVjNGU3ODg4ZDA1MGMzN2Q2YTEifQ"
+        },
+        {
+          "resource": "repo://package.json#L24-L30",
+          "version": "repo-lines-v1:sha256:811d10dd59a5f17b4f32b1dbd47550dc9290b4ee63ec19701c01ec4e6332a7a7:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdlMTNkMWE1MmQ0ODQ0OGEzMzlkY2YwYjIxMmM5YWM1OWFkNzY1NGZhNDM1YTI3YWEwYmJiMDFhODExZjdlOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmZjNzljMDA3ZDEyMDc1YjRmZDcwYjM0ODYzZTYwOTI3ZTRjMGU5YjAyNGQ2NDhmZGU5MjRkNjliNDlmOGRhNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTA3OTM0ZmYxMDk3Y2FiMWRiMTNlNTYwZTY1NWJiMmJiYjIzZjNhYWQ5NzRmMDU5MDZiYzU2OWQ2NDI4MjNjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWMxZGVjNWIzYTI0NTJjODA3OTBkYmU5ZGExMWNiNDI5NDZmMDI5Mzg2OGFhNzA1OTAyM2VkM2U2ZTQ5OTZkZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf0e3622f8ad42bdb80b6dcfd446e13e",
+      "statement": "The one-minute workflow is hpm init (scaffold a workspace and run the initial sync) followed by hpm sync (all merges plus skill/plugin links), with --include-hermes-link additionally linking profiles/ to ~/.hermes/profiles and -d giving a side-effect-free preview.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L300-L393",
+          "version": "repo-lines-v1:sha256:747df67c8803fd33e5b99697bd4b4fb653a83e69c913d61c860182d57cf62daf:eyJzZWxlY3RlZExpbmVDb3VudCI6OTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYTEzYTM3YTczZDY1N2RjMGYxZTY3MWYwZGM3MTRmOTg5MWRkNGRhMTVlYzQ1YmQyYTZmODNlMDQzNDY0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiYWNmNTRjMDBmZjIyMjAyNmMxYjI2ZTU0NGZmNGE3ZDQyZmJmZmNhMjVhNzNiMWViMWZlZjE2ODAzZGM2ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjNjI0ZmNjYWMxYzEzNjEyZTk3MDJlZDIwZDc1MjYxZmVmM2UzNzhhOGE1MzI2NmEwNDM0OTVlM2Q5ODM4MGQifQ"
+        },
+        {
+          "resource": "repo://src/cli.ts#L396-L415",
+          "version": "repo-lines-v1:sha256:8d1aa3f77cf67bc36426689e6fb570a6b1cd2d4f0bba50a9246382c2188ef4d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYTEzYTM3YTczZDY1N2RjMGYxZTY3MWYwZGM3MTRmOTg5MWRkNGRhMTVlYzQ1YmQyYTZmODNlMDQzNDY0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmNGQzM2JiNzJhYWE0YTUyNmFiMTJlNTY5NjFlMWZhYTBmYjg2Nzk0MmIyZDY1NTc5Mzg1M2I3NjZkYjQ5MDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyNzM4NWRlMTM4M2UxNDg0NmI0YmZhODlmNDQ2MTljMjI0MjExNDhhOWRlYTVhYzYxOTY2YmMzMWQ2NDU2NWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f9eef0c1e08481aa06ec58c148bd1c8",
+      "statement": "The workspace root is auto-detected by walking up from the current directory to the first directory containing profiles/common/, and can be overridden with -r/--root.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/root-finder.ts#L8-L26",
+          "version": "repo-lines-v1:sha256:9a518f9adbe7b595ff91e0db651436a0f47356de6d275855e54a9fbe0285a9ff:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzZjJiOTRmMzY3MjQyZWRkZDQ5MDVmZjI2YTBmYjQyNDcxYTFiYmNmZTNmYTRkNDdhZWQ1YmQzY2Y4ODk3NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxYzhkNzE3YzA1OWViNDY2NDliMDllNWJmOTNjN2E5YjYyOTU1MDMxYWRmNGZiNTEzNjEzYWQwMmFmZTVlNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3a3f811a153a4fdca8a86510568b36d8",
+      "statement": "The name common is reserved for the shared base directory and is rejected as a profile name, because profiles/common/ is the base every merge/link step reads and links into, not a per-profile directory.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-name.ts#L18-L26",
+          "version": "repo-lines-v1:sha256:d8a918c9d3ad35c46fd1baaab6e66d4ec97af3e9e8d16ca6b26db2d977de5278:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWE3OWQ2YmJkM2JkNzllMzQwMjk4ODBhMjdmNjA3MjQyMWUwMzRjZTEzNWQyMjY5MWU5YzBjOTQ4M2JiNTYyZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjVlM2U2NDdlNDMxN2EwY2RhYjI3ZGQyM2I3MGMzM2RhZDI4M2RlMDUwNWVjMzNiZjliOTY2YmRiNWZkNjA1OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWZhMTIwYTg1ZjdmNmRjYzUwNzE5MjE4MWYzZDUxOWZmMjAwMDkxY2M1MWVmMDVmZTIwMzU5OTk5NzBhYTE0OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWNlMGE1MDFjOWYzZDQyNjAyMjNiOTgwNGI2NmYzZDAzYzk2MzRjZDZkM2UxOTBmNzU3MWRmMTRjZWM0MWU5NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ea3b6b7fd6124810b7b66c1b287a0b9c",
+      "statement": "Compiled outputs (config.yaml, cron/jobs.json, SOUL.md) are rewritten on every merge run while only the *.custom.* sources and profiles/common/ are user-owned, so compiled outputs must never be hand-edited — re-run hpm sync instead.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L97-L98",
+          "version": "repo-lines-v1:sha256:c8c00467aa930d4432d4733472b9de56b234b5c33082af8b305182e45e147902:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWVmNzg3NjcxNzYxMGQ2M2ZlNDg1MTk3YzdhYTZjOTQ2NzAyZGQwMmE3YzViODMyNDdmMjg1OWM4MTVjZDM4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmFlYmM0ZDkxZjM4NzU2M2I1MjAzMjQ4OTFmMmZjYzNhYjJjMDA1YjAyYjUxYmQ5NTQyZjE1MGJmYjgxOWZlOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGY0OTkxNmVlZTRhNTljODYxZTA4OWVmMjZiYmU0NjI5ODhjZGYxYWIxZmMxNjA2NjBhMzkwMWViZGYxNTI3YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ4MDczY2U4OGJhY2UxZmQ2NTZlNjQ3NmYyMWMyZTBkNjhmMTA5OTNlZTEwMzVhNjNmMDI4Zjk1YWQ4NDEyYSJ9"
+        },
+        {
+          "resource": "repo://src/core/jobs.ts#L208-L209",
+          "version": "repo-lines-v1:sha256:c81a4b498a0d2d2e2f31a29e33ee96f3c67325df0a399eedc14f4723728399a5:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzkxOWRhNDU2M2I1ZTUwNzY3MjgyZDc3OTI3MGI4MWI5OTI2YWEwYzg1NzQxNTg5NDkyZWRhNjQ5MjA5YTdkYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJkNDRlYTM4MGY0YzExODViZWM0YjM2YzNjOTk3M2MxNzMzNmJkNjNhN2UwZThhZDczNjg3N2Y1ZmJjYTgxZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWY2ZWM4NDY0N2IzYTRjMmYxNjVmMjlhMTc0MWZkZmIzZTg4MTUxMzYxOGQ2MjU0ZjAxZmE2M2YzMmI4MWVhOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2MxZjAxMzBjNmU3NTIyNGEwMDczODFlN2I4YWE0ZmUzYmI0ZjRmYzA3MzIxYzgwZTFjNWIwNmNhYTVmMTA2MiJ9"
+        },
+        {
+          "resource": "repo://src/core/soul.ts#L77-L78",
+          "version": "repo-lines-v1:sha256:c79378b57b08b84c756f307cb3062ffc65dc3218779e1e52a37167f53206f742:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDZmYTkyYjk4Mjc4ZGY5Zjc1ZjM3NTg2YTljOGU0N2I0MzE0NzE0ZGFjMTk0ODkwNWMzNTIzN2ZhZDg0YTI0OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWM3MDc3MzMwMmE0NjAzZTQzZmQ2NzgwNTEwNTMzMTdjMmM0MGEyYjJiZjk4YjM0MmRhODI3ODUyOWNlMmY2OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGY0OTkxNmVlZTRhNTljODYxZTA4OWVmMjZiYmU0NjI5ODhjZGYxYWIxZmMxNjA2NjBhMzkwMWViZGYxNTI3YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWJhODU4Nzk3N2ZlMDcxNjFlNTg3YmEyYjJhNzhiNmE0YTk0MzdjNmMzZjkyNWE4ZTBjZDNiNmIwNmY4MTE0MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_33269594665a453882bcee05ebe9babb",
+      "statement": "The jobs output cron/jobs.json is fed back as the base on the next run and the merge dedupes id-less jobs by canonical content equality, making repeated merges idempotent so the jobs list never grows.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/jobs.ts#L104-L131",
+          "version": "repo-lines-v1:sha256:cf3d2783cb107881ad5c2ada4916ccf856db332c5a25940a11caf5cf48bc213b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyM2NiNGMxM2Q2Nzc1OWQ1NGY3NjcxZDQ0MDM0OTcyZDA5MDNhMzlkMDhhZmFlNzNiYjk4MWViOWFiMGRjZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjOGZlZjMwZmI2MWNkNDk0NWMzMmFjMTNkYjEwNzMzZTMyYzg0M2MwYWI1OGE4ZWM4ZWNmMmRjZDhiODBhMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyNDM4MmU3NGI4MGVkZjk5ZWRkZTk4MThjNWFkYjFlZDQ4ZWE1ZjEyMjc3ZDM5NDhhMTIxNTY1YmUwODYwN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3MjZkNzNhOWU4N2U1YjU3ZjU1M2FhMGM4ZjdlMDI5OTdjYzBkN2RlZjI2MTczMjQ0Yzg0N2M0OWNhNGRhMTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_114c26289d6342a39d2099ef1801d1bb",
+      "statement": "The aggregates syncAll, mergeAll, and linkAll never throw: failures travel in stepErrors, per-profile status:'error' entries, and linkErrors, and the CLI is the single place that converts them into stderr output and a non-zero exit code.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/sync.ts#L147-L171",
+          "version": "repo-lines-v1:sha256:4d5f54f28872d67b7f07e01471951d407c270c15075a98a29a95ef7286f0f3b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkZDEzZWViMTZiNjIwMThhNmFiNDNhNTM2MzZkMTkwM2YwMDFlMGU1MjBlOGY3NzAzZGFiNThkMTZiMDYzNDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2YWFiMjViNGNiYTVlNjM3ZTY4ZDM2MzRiYzI5MjY1N2Y4Mjc1M2VmMDNkMGZkYjhiYzlmYTVmMDY3OTY1MTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_38272b97e925476e8bacb8a683e1df5f",
+      "statement": "Writes are confined to their boundaries: profile names and Hermes-home destinations are validated and asserted to stay inside the workspace / Hermes home (traversal defense), and a non-empty -p/--profiles list scopes the run to those profiles and skips all global ~/.hermes writes.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L170-L175",
+          "version": "repo-lines-v1:sha256:82432ef12ac527ef0af7426fafadc313face53c831b7120fbd5bec1b4c2738db:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDI1OGNlOGVmZDA0NGFjYjNiMTJhYTM4YWVkMWYwZTgxZmFhZjVkY2E4Y2FjMzcxN2QyMTk0MDJiM2VhZDg0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBmNmJkMTE3YzkyNWExNDA0Zjk2NmI0NzQxNTRkZDBiN2E5MDE2MjA4MjQ3ZDU4MzlmYTVmOGQzNDM0ZmYyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzJjZjIxOTlkNWZmNmI0ZjU0YjJlMzA3MjBlZjZhOWJhOGY3MzY3MjJjYjI5YTYwYjk1YzM0MmE5NTI2OTBkYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjA1YzBiN2Y1ZWU2YjUyOWM3OTQ3NDMwZGJmNDk1YjBlZTYzZjFhZTUzOTFiZDAzMDRjNTZhOWU2YTg2YWI4NyJ9"
+        },
+        {
+          "resource": "repo://src/utils/profile-name.ts#L58-L94",
+          "version": "repo-lines-v1:sha256:31da7c4010fc8c9b9207d4b9b982d3f9b24b421eec90890ed5515636b2507e0f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyOWY1NjViNzM4YTVkZTU1NTAxMDliNWZkMjFlNWQ1ZGRlZWU2YjUyM2I3NzMyNWM1ZDkyZmJkNTRiYjZkMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljMGYzODc3NzEzNWQ2NTY2MjJjYTM2NGJmMGU1N2QwNDc1M2E2NjRmNTk3ZDllOTA4MTA5Y2ZjODE5ZmE4MzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.6.0",
+    "at": "2026-10-01T18:53:53.575Z"
+  }
+}
