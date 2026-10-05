@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import path from 'node:path';
+import fs from 'node:fs';
 import { findProjectRoot } from './utils/root-finder.js';
+import { getProfileNames } from './utils/fs-helpers.js';
 import { mergeConfig } from './core/config.js';
 import { mergeJobs } from './core/jobs.js';
 import { mergeSoul } from './core/soul.js';
@@ -9,6 +11,16 @@ import { linkSkills, linkPlugins, linkHermes } from './core/links.js';
 import { mergeAll, linkAll, syncAll } from './core/sync.js';
 import { initWorkspace } from './core/init.js';
 import { collectMergeErrors, MergeStatusResult } from './utils/merge-results.js';
+
+/**
+ * Accumulates repeated `-p/--profiles` values into one array so users can
+ * name several profiles either as separate flags
+ * (`-p a -p b`) or, on `init`, a single value. Commander calls the parseArg
+ * with `previous` undefined on the first occurrence.
+ */
+function collectProfiles(value: string, previous: string[] | undefined): string[] {
+  return previous === undefined ? [value] : previous.concat(value);
+}
 
 const program = new Command();
 
@@ -18,7 +30,14 @@ program
   .version('0.1.0')
   .option('-r, --root <path>', 'Path to repository root (auto-detected by default)')
   .option('--hermes-dir <path>', 'Path to Hermes home directory (default: ~/.hermes)')
-  .option('-p, --profiles <profiles...>', 'Specific profile names to target')
+  // SINGLE-VALUE on purpose. A program-level VARIADIC `-p, --profiles
+  // <profiles...>` consumed ALL following operands, so `hpm -p <name> <command>`
+  // swallowed the subcommand and `hpm <command> -p <name> <target>` swallowed
+  // the subcommand's positional argument (a data-safety bug: `init -p <name>
+  // <dir>` scaffolded into cwd under the default profile). As a single-value
+  // repeatable option it takes exactly ONE value per occurrence, never an
+  // operand; pass several with repeated flags (`-p a -p b`) or the long form.
+  .option('-p, --profiles <profiles>', 'Specific profile name(s) to target (repeatable; repeat the flag for several)', collectProfiles)
   .option('-d, --dry-run', 'Run without writing changes to disk')
   .option('-q, --quiet', 'Suppress normal output');
 
