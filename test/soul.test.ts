@@ -60,9 +60,15 @@ describe('mergeSoul', () => {
     // No output file was written.
     assert.ok(!fs.existsSync(path.join(workerDir, 'SOUL.md')), 'dry-run must not write SOUL.md');
     // The log line must not claim the file was written.
-    assert.ok(!lines.some((l) => l.includes('written to')), `no "written to" claim in:\n${lines.join('\n')}`);
+    assert.ok(
+      !lines.some((l) => l.includes('written to')),
+      `no "written to" claim in:\n${lines.join('\n')}`,
+    );
     // And it phrases the write as a preview.
-    assert.ok(lines.some((l) => l.includes('Would merge SOUL to:')), `preview wording missing in:\n${lines.join('\n')}`);
+    assert.ok(
+      lines.some((l) => l.includes('Would merge SOUL to:')),
+      `preview wording missing in:\n${lines.join('\n')}`,
+    );
   });
 
   it('rejects a path-traversal profile name BEFORE any filesystem side effect', () => {
@@ -83,15 +89,18 @@ describe('mergeSoul', () => {
         assert.ok(err instanceof Error);
         assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
         return true;
-      }
+      },
     );
     // No escaped output was written...
     assert.ok(
       !fs.existsSync(path.join(escapeDir, 'SOUL.md')),
-      `no file may be written outside the workspace (found: ${escapeDir}/SOUL.md)`
+      `no file may be written outside the workspace (found: ${escapeDir}/SOUL.md)`,
     );
     // ...and the workspace was not modified either.
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
   });
 
   it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
@@ -99,10 +108,36 @@ describe('mergeSoul', () => {
       assert.throws(
         () => mergeSoul({ rootDir: tmpDir, profiles: [name], logger: () => {} }),
         /Invalid profile name/,
-        `expected "${name}" to be rejected`
+        `expected "${name}" to be rejected`,
       );
     }
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
+  });
+
+  it('rejects the reserved profile name "common" BEFORE any read or write of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeSoul -p
+    // common` would read common/SOUL.md, merge it with common/SOUL.custom.md,
+    // and write the result BACK onto common/SOUL.md — self-merging the shared
+    // base so it accumulates garbage on every run and never converges. The
+    // reserved name must be rejected during the up-front validation loop.
+    assert.throws(
+      () => mergeSoul({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      },
+    );
+    // No workspace was created or modified at all.
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
   });
 });

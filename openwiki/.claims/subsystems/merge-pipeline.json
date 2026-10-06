@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:c06f35817da97632e9f61de4b8652182ac481070805111dcefb6ad719ac0fa62",
+  "claims": [
+    {
+      "id": "claim_d5d393eb2fb24667be11c2467e8c5104",
+      "statement": "mergeConfig throws before processing any profile when profiles/common/config.yaml is missing, is invalid YAML, or is not a YAML object, and mergeSoul throws when profiles/common/SOUL.md is absent — these pre-profile preconditions escape to the aggregate, which captures them into stepErrors.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L60-L79",
+          "version": "repo-lines-v1:sha256:52e322302471390943a1c8eb46d82965e5f467441472295cfb30f69f111ff6e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0Zjg3YWU4MTkwMTg4MjYwMjlmMTBmYTMzY2ZlN2Y3ZWIzNGU5NTZhNTQyNmU5NjZmMjc5MjlhZThjODBiYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlNjcyNTc1Zjk4MGI1ZTkyYzMxNWUyNmZiNDM4OGVlZTVmYzFiYTlmYTQ1Zjc3MDk2MjY1NmU5MGUzY2NiYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjNTMwNTMzZTU0ZGI1YjZkY2MyZTIzMzAwOTU3ZDk5NWZlZGZhM2YzN2VlYWJkMTgzYTkwYTQ0YTQxODcyYzYifQ"
+        },
+        {
+          "resource": "repo://src/core/soul.ts#L54-L58",
+          "version": "repo-lines-v1:sha256:0e5c2cd0ef8ac182634399a2185cef7739514263a3e9286669e9da3dfdcde727:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI0MGVmYzJkYjM0YTFkZmYyZjIxM2JkNmY1YTNmYThhMmFhOTQyNzVkNTI3NTI3YjM1Y2Q4NjhhZWUwOTRmNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlNTc4OGQ1ZDlkNzNkMjRhODFkYmMwYTVhNzRiZmE4MmM5YzNiM2FmOTllNTJhZjc5NmU5MGI0NjhhOGEzZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmU2NzI1NzVmOTgwYjVlOTJjMzE1ZTI2ZmI0Mzg4ZWVlNWZjMWJhOWZhNDVmNzcwOTYyNjU2ZTkwZTNjY2JjMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWRiOWVhZmQ2ZmI5MmE3ZmYwZjk5NTVjMGZmNGEwNjgwODk2M2M3YjZmODM1MDZkMzlkZGQwYWUxN2MxNzMzNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_418ecb284ea749549fdb7d41937481a1",
+      "statement": "config merging uses deepMerge(common, custom), a pure recursive YAML-object override matching yq's multiply operator: nested objects merge recursively, non-object values (arrays, scalars) in custom replace the base value, base keys absent from custom are preserved, and the result never shares mutable references with either input.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/deep-merge.ts#L15-L35",
+          "version": "repo-lines-v1:sha256:9f6b9b0f9984f84da9145a2497992430291defdc72ae1551b52a6039ca632315:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0ZDY1NGM3YmY1ZWZiOTZkNWI5OWM5YTk1ODdiMjVkNDZlMTQ3NTY4NjQwNzJmMzVlNGE1NDJiYzA3MmNlZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1NzkxNzViNDU0YzdjMWE0ZDhmYzJhMzgxNmU3ZGM1ZTAwNDEyYzZhNmU4OTE4ZGJlY2VjMGE3MjJlY2NkZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8398636b8277464cb25f4a919933b9b6",
+      "statement": "mergeJobsDocuments merges top-level properties custom-overrides-base, merges jobs with a matching id (custom properties override the base job), appends custom-only jobs, and preserves base job order.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/jobs.ts#L112-L174",
+          "version": "repo-lines-v1:sha256:2fa227570416480a510d6995eb46aa4b9540a80e67cc67bb4de26e50d8243cd6:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1YWU3Mjk1MzQwMTJiOTdjZjJmZTYxNGQ2OTgzMjY3NGQyY2U5OGI4ZDAwZDhlMjFkNmQ3NWMzNmQyZGIxOWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhMGU1MDhmMmEzYmYxMGM3ZWZiM2JkNjZjYmJhMGQ2NGFlYjI1ZGNjNTc3NjJhMzhiZGQ4YjVlMjQ0NjdiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllYTVhNjE2MmNlNTFiYjdlODMzYjgwNjNkYmQyNTVmNDcxMTFiYjJjNjBkNzY1ZDNmYTgzODExMWIzNGJjNjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bfe6ea4b0de74ab7800b264045bbc7c7",
+      "statement": "The jobs merge is idempotent for id-less jobs: mergeJobs feeds a previous run's jobs.json output back in as the base, and id-less custom jobs are deduplicated by canonical deep-content equality (canonicalJson, keys sorted recursively), so f(f(base, custom), custom) === f(base, custom) and repeated merges never grow the jobs list.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/jobs.ts#L104-L131",
+          "version": "repo-lines-v1:sha256:cf3d2783cb107881ad5c2ada4916ccf856db332c5a25940a11caf5cf48bc213b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyM2NiNGMxM2Q2Nzc1OWQ1NGY3NjcxZDQ0MDM0OTcyZDA5MDNhMzlkMDhhZmFlNzNiYjk4MWViOWFiMGRjZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjOGZlZjMwZmI2MWNkNDk0NWMzMmFjMTNkYjEwNzMzZTMyYzg0M2MwYWI1OGE4ZWM4ZWNmMmRjZDhiODBhMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyNDM4MmU3NGI4MGVkZjk5ZWRkZTk4MThjNWFkYjFlZDQ4ZWE1ZjEyMjc3ZDM5NDhhMTIxNTY1YmUwODYwN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3MjZkNzNhOWU4N2U1YjU3ZjU1M2FhMGM4ZjdlMDI5OTdjYzBkN2RlZjI2MTczMjQ0Yzg0N2M0OWNhNGRhMTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_941d8d401563496ab9c8ea44a1ded5ef",
+      "statement": "soul merging concatenates with the profile custom SOUL FIRST and the common SOUL appended last (`${custom}\\n\\n${common}\\n`), with both inputs trimmed, so the per-profile identity comes before the shared guidelines.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/soul.ts#L99-L103",
+          "version": "repo-lines-v1:sha256:9f4f96056a95bb4bd040ac255b6ca93e12328bb1a562ccdc46f737e786315b72:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDgyNjBjMjk0ZDA5YjljMzUwZTE5ODM3MjkzYjBiMzkxODU1NDljZTI0YzQwOWU4YzFhMTAyOTAzNTdkOTZmNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGJhYTFmNTU1YmQ0OTNlNjM0NjNiOTA0NTliMmYyZjZjMjY1N2U0MzhhOTFmNTgwYmFiMDBhMGYzZWFlYzZlNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzZiMjU1Y2FmNTJjOWZkMmJhMzE1Y2QxMTBkMjFkYmVjNzEyMmIyMzBkOWY0ZTEyYjY2MjI1YmY0YjQ0ZDJhMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjYwZjQzNmU1NDE5NTcwMDhhZDZiMWEwNjNhZTZjM2YzMzM3MjA2ZDUyMzA0ZjNhMTgyNjU4MWM0MTA3YTAyMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1fadd2310b0e45939fae37d16b18949e",
+      "statement": "resolveTargetProfiles gives a non-empty explicit profiles list precedence; otherwise profiles are discovered under profiles/; an explicit profiles: [] is treated as 'no explicit targeting' and falls back to auto-discovery, so on a profile-less workspace it yields an empty list and is not exempted from the no-targets guard.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-targets.ts#L43-L64",
+          "version": "repo-lines-v1:sha256:6eb6d5f7749a8c78b73b79ea1cdb3cee6b97d2e82d06aa4a343b04fd1012f2a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjM2FkYzllZGNjNzg3MmRhMjNhNGU1NWZiYzEzNTdjNmZlMWI5MDM2Mzk4YzUxMTcxN2EwMGU2OGZlMGFjZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlODcxYWJlZjg3MmJhN2JjZDJkOGJjOTZhYzc4MDc4MTc0YzYwYWFlNjI2OGU3MTIwNjNhMTVhYThlYWQwNTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkN2M4OWIwYzg4NzBhMzI1NzI5NmViYWE1MzJkNGNiYThlZjQzNDljNDlkZTE0NDg4MDg3MGE1NGNmYThmMTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a463808d9bef4d1da71d8a9a6b884ce1",
+      "statement": "assertNonEmptyTargetProfiles makes an empty target list a hard 'No profiles found under <dir>' failure unless allowEmpty is set; it is shared by the three merge steps, and the trailing 'nothing to merge' gate fires only when no custom source exists anywhere AND no profiles were explicitly targeted (source-existence based, not merge-success based).",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-targets.ts#L76-L84",
+          "version": "repo-lines-v1:sha256:7ce06e67d24b11e8c0343975acf57d1dff92dd0376669340e972c88163f19ff9:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjhjOTAyMzY5NzMwYTE4NzgyMmEyYjhhMDZkODMwMmYwYWYyMjAxNWFiYzA0ZTBkMzVlMWMxNWEwNzQ2NWRlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWM0YjcxMjlkNGNkODM4OGQ0ZTQwYzc2M2U3ZjFkMWMxYTg0NTY1MzFkZmY0ZTlmODZjNWUyYTNiZDUzOGIxYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODU3ODNiYmU1YTZlMDNjODViZDQyZDY2M2E4MjVkMjIxZmQ3OGFhMmRmMGQ4MmExNzVlZTYzMmRjZDg1Y2VlOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_524cf7eb2c4e477995de628b391b6a39",
+      "statement": "runPerProfileMerge drives the per-profile loop: a missing custom source yields a per-profile skipped entry (a visible no-op) and does not flip FoundAnyCustom, while a real custom source flips it even if that profile's merge then fails (the failure rides on its status:'error' entry); per-profile parse/merge failures are caught inside the body and never escape the loop, so one bad profile does not abort the others.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-targets.ts#L90-L150",
+          "version": "repo-lines-v1:sha256:96be4d4369f012f43ec93d2040fb357488a1ddd4ec2640c92841961fccc6cf93:eyJzZWxlY3RlZExpbmVDb3VudCI6NjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzODc1MzQxZTMxNWZkNjhiZmFhOTI2OWQxZjE5MzUxMjBkYzkzNDg0MmM3YzYzM2E1NDdhODc1NDhhMTAxOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjZjdlMTYyOWVhMmJlNWNkN2NhOTYyMzY2OWQwNDQ4NDliZmYxNzQ5MGUxNGQ4MTMzZTQxZmViMGUwZDM3NWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwMThmYWFlM2E4Nzg1YWM1MWUxMDYwMzkzNzE2MjI0NjFhOTIzZmQyY2ZjYjE2NzA4NTY2Zjc5MzkyNTA2M2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c95de5c28d54ac397f77d10408b652f",
+      "statement": "allowEmpty governs two distinct no-targets situations in every merge step: an empty target list (no profile subdirs, or explicit profiles: [] on a profile-less workspace) throws 'No profiles found under <dir>' unless allowEmpty, while a non-empty explicit profiles list is exempted from the 'nothing to merge' throw so an explicitly named profile with no custom source is a per-profile skipped no-op (exit 0), not a top-level failure.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L17-L44",
+          "version": "repo-lines-v1:sha256:0700f1ccebd48dffa151e1ebd64e26952ed70d13198275263c0334fc2153f71c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMDFjZWQyZDA4Njc1MjE3MmFjNGFlYTBjOTczN2RhOTA2OTQ4NTkzMTYzMjk1MzljM2Y1MjI1ZTI2YWNhZmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5OGYxYTY4MGI2MGYwNDBkOGU0MTUyNzlhMDAyNTgyNzU2MGY5ZTQzNjlkYjE0YzQ3NGYzZTcyZDg5ZDBjMTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiMjNkMTRmNTVkZmY2MzMwNGZjMGQ4YWQzMzVlNjkyMGRlODkxMDc1YmUyMGMyNjg1ZmE2NTJlMWE3OWM2NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3OTI5ZTkxZTBmOTljM2U4MjVkZTY5YjQzNWZiNjQ4NGQxYjBhMWRmMmY0NjU2MWFiZjFhMjlmMDQxODhiODgifQ"
+        },
+        {
+          "resource": "repo://src/core/jobs.ts#L13-L37",
+          "version": "repo-lines-v1:sha256:1d46613906efacda8a213a7f4249af163ce2645562ddb6f99c33536e46c5897d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2ZTUxOGU2NGJjODZjNGRmMmEzYTE3N2JkMDViNTE0ODEyNTBhNTMyOGQ2ZGE1ZDBkNjczZDgzM2IyZDcyZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MTRjYzkyNTUxMzg5Y2M1M2QzZjFiYzA3NmQ1N2IzOGFhOTFjZDY5MGFjMGE3MzgyODdjOTUzZTczMDNmMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk2OGRmZTgxZTIxZDcyMzk0NDgzYWY4Yjc3NjhhOTZjZmQ5NDIyMmFlZjllNjNjYzYzZDIwMDBlYWM5YjRkZTUifQ"
+        },
+        {
+          "resource": "repo://src/core/soul.ts#L13-L37",
+          "version": "repo-lines-v1:sha256:fe1c3bbee7c35f428ef202fc278b467e0ee9c322ed6f273500b9457ad335c89b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0ODFmNjQ4YTRjY2M2NDViYWIxYzZlZGE2ZGFjYzI5MDI0MjI3ZTNlOGZlMjkwZWE4ZDdlMTMzNGNjMWQ3ZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MTRjYzkyNTUxMzg5Y2M1M2QzZjFiYzA3NmQ1N2IzOGFhOTFjZDY5MGFjMGE3MzgyODdjOTUzZTczMDNmMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmODRlZjQxNjc3ODljNDhlM2MzNzkzZTEzZjA3YjJmM2NmZGJmYWVlY2M1Njk3ZGZmYjMwMThhMWU5MDUyMTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_be1d2ad999344506893a4b417b2e74a1",
+      "statement": "The aggregate sync path runs the merge steps with allowEmpty: true (set by mergeAll and syncAll), so a workspace lacking a given custom source is a successful no-op for that concern rather than a hard error aborting the rest of the aggregate; standalone CLI merge calls keep the default false and still surface the 'nothing to merge' error.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/sync.ts#L81-L106",
+          "version": "repo-lines-v1:sha256:6f72f15582886158aa5ca9ff572dcb9caac2d16649faecda65030683349b0927:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlMTU4NjA4NTAxMWFlNGU0OTVhZDFhYjQ4NDljODdkM2UzMDI5Y2QwYThhY2Y5NGI2NWExNTEzY2RhZDIxYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlNjViNjhlY2YzNWNjNDZkZTdiNzhlNGM5MTFmZDZiMmU1ZmZjZmFkZTVkNjMwZTg5YTQ1MTI2MWQ2NmJhNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3OTI3YzU4NjFmMGEyMWJhY2FmMTIxMGExNjVlNzk1MTgwNTQzMzhjYjI0ZTAyZTAzOTY2OWYyY2VmZjk4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3OTI5ZTkxZTBmOTljM2U4MjVkZTY5YjQzNWZiNjQ4NGQxYjBhMWRmMmY0NjU2MWFiZjFhMjlmMDQxODhiODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d545c01c2b9b4386a992f2a9d04a6391",
+      "statement": "mergeJobs recovers from a base jobs.json that is unparseable JSON or valid JSON that is not a jobs document by falling back to an empty base ({jobs: []}) so the run can proceed, but logs a Warning naming the file because the next write overwrites it with custom jobs only, dropping every previously merged base job; an invalid-JSON custom source instead produces a per-profile status:'error' entry.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/jobs.ts#L238-L271",
+          "version": "repo-lines-v1:sha256:800f2456afe06c05db3c684a256ac90f4d7f44479c19c53604312cac9da1ff65:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzMDJmMmU1YzU5MGU5MjUwYWUwYWYxZjFiMmM0NzcyMmZiYjJjM2E5NGI4YTgyMzBhNzlkMzlmYWZlZGRlNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0MzlkOTVkNTgxY2M4ZDM4YjBmOTI1Y2RmMDMxMWYwYjIyMmJjNmNiMTYyMjM3NDkwYmExNGVjZWQ4MzBhM2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyNmMxY2ZmYjEzOWMwZjhlMmQyMzIxZjQzYTBiYjAwZGFkODFlMDUwMjBkMzNhY2FmZTExODIxYmMwZDJjOWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_189c2c11864040989a9e0a976d785b2d",
+      "statement": "Each merge step honors dryRun by computing the merged output without writing it and logging a 'Would merge ...' preview line instead of 'Merged ... written to ...', while the per-profile status is still merged/skipped/error exactly as a real run would record.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L139-L149",
+          "version": "repo-lines-v1:sha256:498b63ba276d5633661e13b7445fc153a4aa62eca556b192bf46ac959e00b735:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MTgwYjViODg3MTNkODE1ZGYyYjM3YWU5ZThjNTUzNDUxOTUwNDMzNWU5YmJmZjlhYTJmNzMxZDQ1NmFkNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNzVjNzBkOTQ2MzYyNWUxMDc5ZmQ4ZmM4ZWU2MmFkMmU5MmM0MmJlYWFiZmQ4NWI3OGQ4ZTBhNDk3OWI5NGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0M2M0ZWVjZDMzMzM0YTY5NWQwYzllMmQ2MjJhMTFhMWIzMWQzZmY2OTM3MjlhZjk4MWNkZjNjYjM4MGIxYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzM2M3MzRmOWYzNTdmM2JkNmUxMTcyNzdiZjY1YjZhOWQ4NjgyZDVjNzAwZWY5NmM3NWU3NTE4YjdlNDczNTMifQ"
+        },
+        {
+          "resource": "repo://src/core/jobs.ts#L280-L290",
+          "version": "repo-lines-v1:sha256:76c601f7b783f45c6d2538a65f9c1518252bf9551bbada81d3aead9701bb0add:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MTgwYjViODg3MTNkODE1ZGYyYjM3YWU5ZThjNTUzNDUxOTUwNDMzNWU5YmJmZjlhYTJmNzMxZDQ1NmFkNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNzVjNzBkOTQ2MzYyNWUxMDc5ZmQ4ZmM4ZWU2MmFkMmU5MmM0MmJlYWFiZmQ4NWI3OGQ4ZTBhNDk3OWI5NGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNkODZhY2NjOGJhOTc0NGVmNDczMWQ3MjE0NDE3YzRjY2Q4MzdlOTNlM2QyZTE1MmJiNjExZTNjMjhjMjdhZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjOWJmYmI4Y2ViNTMxNzY1NzUyMmQzZjFkOTVjYjMyOGU5Y2MxZmJhODczMGRiYmEzZGIxZjczMTQxZmQzOWMifQ"
+        },
+        {
+          "resource": "repo://src/core/soul.ts#L102-L112",
+          "version": "repo-lines-v1:sha256:0a8c6574f397098ca969e4ba7d1440a29c9644d4c0c6e9cd8e675fe328c4072e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MTgwYjViODg3MTNkODE1ZGYyYjM3YWU5ZThjNTUzNDUxOTUwNDMzNWU5YmJmZjlhYTJmNzMxZDQ1NmFkNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNzVjNzBkOTQ2MzYyNWUxMDc5ZmQ4ZmM4ZWU2MmFkMmU5MmM0MmJlYWFiZmQ4NWI3OGQ4ZTBhNDk3OWI5NGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkYmJlOGJiNGIxNGY1ODJmZTIyZjJlNjljMGQzM2JmYTNkYzNkYjNjN2UwZjJiMzk2NWM2OWE5YTQ2MTVmMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4MGRiZmFhYWQyNjFiNmJhNDdjZjFkZmQ5Y2Q4YjIyMmEwYWE3ZTZiNzIyZGRmODE5MzM0MmE0ZTA0MDNhYzgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d342ab1a082343038cb5b2e5a9288398",
+      "statement": "Each per-profile merge body calls assertProfilePathInWorkspace (defense in depth) to assert the profile directory stays strictly under profiles/ before touching it, closing traversal even for non-explicit names.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/config.ts#L93-L96",
+          "version": "repo-lines-v1:sha256:ddabb4c7e46a3ced104c96e8e11a2a7dd50142c11c643da8ca0b279150d36d58:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU3N2E1MDM3ZWJkN2VmZWE4ZWQ2NTVmMWVjYTJmMTI3N2M3OWJjM2Y2YjEwMDQzNTc4OTg0M2QyZjk1N2JkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwYjRmMGVlOTZjNDI0NTVjZjY5OWFhMmE0NDk4ZWUzNGRkMzJmNmY5ZTU3ZDliYmYwNDU2ZWRiMWZhMTE3MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGQ1ZmQyOTI3NDdmYjM1ZmEzMDg4NGQ4ZTQ5NWJiMjBjYjU1MzY0ZTU4OWI0NmRhNjU0NjlhNWZjODdlNTAzMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE1ZDA3YzdiYjlmOTU1NDA5NjM0ZjMyNjA0NTBjOTg5ZTIxZGI1NjI5YmZmYWJmNzkxNWY0NGY4NmI1M2E1NiJ9"
+        },
+        {
+          "resource": "repo://src/core/jobs.ts#L203-L206",
+          "version": "repo-lines-v1:sha256:ddabb4c7e46a3ced104c96e8e11a2a7dd50142c11c643da8ca0b279150d36d58:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU3N2E1MDM3ZWJkN2VmZWE4ZWQ2NTVmMWVjYTJmMTI3N2M3OWJjM2Y2YjEwMDQzNTc4OTg0M2QyZjk1N2JkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwYjRmMGVlOTZjNDI0NTVjZjY5OWFhMmE0NDk4ZWUzNGRkMzJmNmY5ZTU3ZDliYmYwNDU2ZWRiMWZhMTE3MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzhjMGM1ZjVmYzI2MmZlM2JkYTMzZmIxNDIwZDljMTcxNzZiOTE5ZTlhOTA3NjczY2I1ZjljODQzNmNhOTY0NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTNlZmFjYTAyZmJlMWZkMDNmY2VhZjc3NmJlYTdiMjFlYzgxZTE1NmI0NzM1YTJhYmExNmYyN2NjNDIzYTQ5OCJ9"
+        },
+        {
+          "resource": "repo://src/core/soul.ts#L73-L76",
+          "version": "repo-lines-v1:sha256:ddabb4c7e46a3ced104c96e8e11a2a7dd50142c11c643da8ca0b279150d36d58:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU3N2E1MDM3ZWJkN2VmZWE4ZWQ2NTVmMWVjYTJmMTI3N2M3OWJjM2Y2YjEwMDQzNTc4OTg0M2QyZjk1N2JkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwYjRmMGVlOTZjNDI0NTVjZjY5OWFhMmE0NDk4ZWUzNGRkMzJmNmY5ZTU3ZDliYmYwNDU2ZWRiMWZhMTE3MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmM1NTJiMjhlZDlmYmYzZTc3MjMyMjRhMzA4ZTVlNzYzMTdhNDI4OGI5NDViMmQyNjk3NjRiZTI2M2Y2MTI0MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzU3YTU5MzE4ZDQ2ZTZhN2EwNjgyYzgyM2ZkMGY1MTQ5MDM3YmQyYjMwYzgyNDZiZGFjMGNlYmFlYzZlMzVmNyJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.6.0",
+    "at": "2026-10-01T18:53:53.575Z"
+  }
+}

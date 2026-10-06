@@ -29,19 +29,25 @@ describe('mergeJobs', () => {
     const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
 
-    fs.writeFileSync(path.join(cronDir, 'jobs.json'), JSON.stringify({
-      jobs: [
-        { id: '1', name: 'default_job', schedule: '0 */4 * * *' },
-        { id: '3', name: 'base_only_job', schedule: '0 0 * * *' }
-      ]
-    }));
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.json'),
+      JSON.stringify({
+        jobs: [
+          { id: '1', name: 'default_job', schedule: '0 */4 * * *' },
+          { id: '3', name: 'base_only_job', schedule: '0 0 * * *' },
+        ],
+      }),
+    );
 
-    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
-      jobs: [
-        { id: '2', name: 'custom_job', schedule: '0 */2 * * *' },
-        { id: '1', name: 'overridden_job', schedule: '0 */3 * * *' }
-      ]
-    }));
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [
+          { id: '2', name: 'custom_job', schedule: '0 */2 * * *' },
+          { id: '1', name: 'overridden_job', schedule: '0 */3 * * *' },
+        ],
+      }),
+    );
 
     const results = mergeJobs({ rootDir: tmpDir, logger: () => {} });
     assert.equal(results.length, 1);
@@ -63,7 +69,10 @@ describe('mergeJobs', () => {
   it('dry run writes no file and reports a preview, not a completed write', () => {
     const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
-    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: '1' }] }) + '\n');
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n',
+    );
 
     const lines: string[] = [];
     const results = mergeJobs({ rootDir: tmpDir, dryRun: true, logger: (m) => lines.push(m) });
@@ -73,26 +82,142 @@ describe('mergeJobs', () => {
     // No output file was written.
     assert.ok(!fs.existsSync(path.join(cronDir, 'jobs.json')), 'dry-run must not write jobs.json');
     // The log line must not claim the file was written.
-    assert.ok(!lines.some((l) => l.includes('written to')), `no "written to" claim in:\n${lines.join('\n')}`);
+    assert.ok(
+      !lines.some((l) => l.includes('written to')),
+      `no "written to" claim in:\n${lines.join('\n')}`,
+    );
     // And it phrases the write as a preview.
-    assert.ok(lines.some((l) => l.includes('Would merge jobs to:')), `preview wording missing in:\n${lines.join('\n')}`);
+    assert.ok(
+      lines.some((l) => l.includes('Would merge jobs to:')),
+      `preview wording missing in:\n${lines.join('\n')}`,
+    );
   });
 
-  it('recovers cleanly when base jobs.json is missing or corrupted', () => {
+  it('recovers cleanly when base jobs.json is missing', () => {
     const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
 
-    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
-      jobs: [{ id: '99', name: 'standalone' }]
-    }));
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [{ id: '99', name: 'standalone' }],
+      }),
+    );
 
-    const results = mergeJobs({ rootDir: tmpDir, logger: () => {} });
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
     assert.equal(results.length, 1);
     assert.equal(results[0].status, 'merged');
 
     const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
     assert.equal(output.jobs.length, 1);
     assert.equal(output.jobs[0].id, '99');
+    // A genuinely ABSENT base is a normal first run, not data loss — no
+    // corruption warning may fire.
+    assert.ok(
+      !lines.some((l) => l.includes('Warning:')),
+      `no warning expected for a missing base:\n${lines.join('\n')}`,
+    );
+  });
+
+  it('logs a visible warning when base jobs.json is corrupt (reset to empty base)', () => {
+    // The corrupt-base path: the base IS the accumulated merge output, so
+    // resetting it to { jobs: [] } drops every previously merged base job.
+    // The fallback itself is the correct recovery behavior — the defect is
+    // that it was invisible. The warning must name the corrupt file and the
+    // data loss, while the merge itself succeeds (status 'merged') and the
+    // output holds custom jobs only, documenting the reset behavior.
+    const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '{corrupt: ');
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [{ name: 'custom-only-job', schedule: '0 0 * * *' }],
+      }),
+    );
+
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    const warning = lines.find((l) => l.includes('Warning:'));
+    assert.ok(warning, `expected a corruption warning in log, got:\n${lines.join('\n')}`);
+    assert.ok(
+      warning!.includes(path.join(cronDir, 'jobs.json')),
+      `warning must name the corrupt file:\n${warning}`,
+    );
+    assert.match(warning!, /not valid JSON/);
+    assert.match(warning!, /previously merged jobs will be lost/);
+
+    // Output was reset to custom jobs only (the documented reset behavior).
+    const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+    assert.equal(output.jobs.length, 1);
+    assert.equal(output.jobs[0].name, 'custom-only-job');
+  });
+
+  it('logs a visible warning when base jobs.json parses but is not a jobs document', () => {
+    // Second silent class: valid JSON with the wrong shape (42, "foo",
+    // {noJobs: true}) — normalizeJobsDoc resets the jobs list to [] just as
+    // silently as the parse-failure path. Same visibility is required.
+    const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '42\n');
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [{ name: 'custom-after-wrong-shape' }],
+      }),
+    );
+
+    const lines: string[] = [];
+    const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'merged');
+
+    const warning = lines.find((l) => l.includes('Warning:'));
+    assert.ok(warning, `expected a wrong-shape warning in log, got:\n${lines.join('\n')}`);
+    assert.ok(
+      warning!.includes(path.join(cronDir, 'jobs.json')),
+      `warning must name the base file:\n${warning}`,
+    );
+    assert.match(warning!, /not a jobs document/);
+    assert.match(warning!, /previously merged jobs will be lost/);
+
+    const output = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
+    assert.equal(output.jobs.length, 1);
+    assert.equal(output.jobs[0].name, 'custom-after-wrong-shape');
+  });
+
+  it('stays silent about the base when it is a valid jobs document', () => {
+    // Guard against over-warning: a well-formed base (object with a jobs
+    // array, or a top-level array) must not trigger any warning.
+    for (const base of [
+      JSON.stringify({ jobs: [{ id: '1', name: 'base_job' }] }),
+      JSON.stringify([{ id: '1', name: 'base_job' }]),
+    ]) {
+      const cronDir = path.join(tmpDir, 'profiles', 'worker', 'cron');
+      fs.rmSync(cronDir, { recursive: true, force: true });
+      fs.mkdirSync(cronDir, { recursive: true });
+      fs.writeFileSync(path.join(cronDir, 'jobs.json'), base);
+      fs.writeFileSync(
+        path.join(cronDir, 'jobs.custom.json'),
+        JSON.stringify({
+          jobs: [{ name: 'custom' }],
+        }),
+      );
+
+      const lines: string[] = [];
+      const results = mergeJobs({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+      assert.equal(results[0].status, 'merged');
+      assert.ok(
+        !lines.some((l) => l.includes('Warning:')),
+        `no warning for valid base:\n${lines.join('\n')}`,
+      );
+    }
   });
 
   it('rejects a path-traversal profile name BEFORE any filesystem side effect', () => {
@@ -106,7 +231,10 @@ describe('mergeJobs', () => {
     // READ this and merged it into the escaped jobs.json.
     const escapeCron = path.join(escapeDir, 'cron');
     fs.mkdirSync(escapeCron, { recursive: true });
-    fs.writeFileSync(path.join(escapeCron, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: 'pwn' }] }) + '\n');
+    fs.writeFileSync(
+      path.join(escapeCron, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: 'pwn' }] }) + '\n',
+    );
 
     assert.throws(
       () => mergeJobs({ rootDir: tmpDir, profiles: ['../../pwned'], logger: () => {} }),
@@ -114,15 +242,18 @@ describe('mergeJobs', () => {
         assert.ok(err instanceof Error);
         assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
         return true;
-      }
+      },
     );
     // No escaped output was written...
     assert.ok(
       !fs.existsSync(path.join(escapeCron, 'jobs.json')),
-      `no file may be written outside the workspace (found: ${escapeCron}/jobs.json)`
+      `no file may be written outside the workspace (found: ${escapeCron}/jobs.json)`,
     );
     // ...and the workspace was not modified either.
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
   });
 
   it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
@@ -130,11 +261,37 @@ describe('mergeJobs', () => {
       assert.throws(
         () => mergeJobs({ rootDir: tmpDir, profiles: [name], logger: () => {} }),
         /Invalid profile name/,
-        `expected "${name}" to be rejected`
+        `expected "${name}" to be rejected`,
       );
     }
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
+  });
+
+  it('rejects the reserved profile name "common" BEFORE any read or write of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeJobs -p
+    // common` would read common/cron/jobs.json, merge it with
+    // common/cron/jobs.custom.json, and write the result BACK onto
+    // common/cron/jobs.json — self-merging the shared base. The reserved name
+    // must be rejected during the up-front validation loop.
+    assert.throws(
+      () => mergeJobs({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      },
+    );
+    // No workspace was created or modified at all.
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
   });
 });
 
@@ -144,8 +301,8 @@ describe('mergeJobsDocuments', () => {
     const custom = {
       jobs: [
         { id: '2', name: 'with_id' },
-        { name: 'no_id_job', schedule: '0 0 * * *' }
-      ]
+        { name: 'no_id_job', schedule: '0 0 * * *' },
+      ],
     };
 
     const merged = mergeJobsDocuments(base, custom);
@@ -160,6 +317,43 @@ describe('mergeJobsDocuments', () => {
     assert.equal(noIdJob.schedule, '0 0 * * *');
   });
 
+  it('does not alias base or custom job objects into the merged output', () => {
+    // Regression test: every output job must be a fresh copy. The id-less
+    // base branch used to push the base job BY REFERENCE, so mutating a
+    // returned job silently corrupted the caller's input object.
+    const baseJob = { name: 'base-no-id', schedule: '0 0 * * *' };
+    const baseJob2 = { id: '7', name: 'base-with-id', schedule: '0 1 * * *' };
+    const customJob = { name: 'custom-no-id', schedule: '0 2 * * *' };
+    const base = { jobs: [baseJob, baseJob2] };
+    const custom = { jobs: [customJob] };
+
+    const merged = mergeJobsDocuments(base, custom);
+    const jobs = merged.jobs ?? [];
+    assert.equal(jobs.length, 3);
+    // No output job may share identity with any input job.
+    for (const out of jobs) {
+      assert.notEqual(out, baseJob, 'id-less base job must be copied, not aliased');
+      assert.notEqual(out, baseJob2, 'id-d base job must be copied, not aliased');
+      assert.notEqual(out, customJob, 'custom job must be copied, not aliased');
+    }
+
+    // Mutating the returned document must not corrupt the caller's inputs.
+    const mutated = jobs.find((j) => j.name === 'base-no-id');
+    assert.ok(mutated);
+    mutated.name = 'mutated';
+    mutated.extra = true;
+    assert.equal(baseJob.name, 'base-no-id', 'base id-less job input must be untouched');
+    assert.equal((baseJob as Record<string, unknown>).extra, undefined);
+    assert.equal(baseJob2.name, 'base-with-id', 'base id-d job input must be untouched');
+    assert.equal(customJob.name, 'custom-no-id', 'custom job input must be untouched');
+
+    // ...and the merge result content is still correct after the mutation.
+    assert.deepEqual(
+      jobs.map((j) => j.name),
+      ['mutated', 'base-with-id', 'custom-no-id'],
+    );
+  });
+
   it('preserves id-less jobs in a top-level array document', () => {
     // normalizeJobsDoc (not exported) wraps top-level arrays into { jobs: [...] };
     // exercise that path end-to-end through a real jobs.custom.json file.
@@ -167,13 +361,19 @@ describe('mergeJobsDocuments', () => {
     const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
     try {
       fs.mkdirSync(cronDir, { recursive: true });
-      fs.writeFileSync(path.join(cronDir, 'jobs.json'), JSON.stringify({
-        jobs: [{ id: '1', name: 'base_job' }]
-      }));
-      fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify([
-        { name: 'array_no_id', schedule: '0 1 * * *' },
-        { id: '5', name: 'array_with_id' }
-      ]));
+      fs.writeFileSync(
+        path.join(cronDir, 'jobs.json'),
+        JSON.stringify({
+          jobs: [{ id: '1', name: 'base_job' }],
+        }),
+      );
+      fs.writeFileSync(
+        path.join(cronDir, 'jobs.custom.json'),
+        JSON.stringify([
+          { name: 'array_no_id', schedule: '0 1 * * *' },
+          { id: '5', name: 'array_with_id' },
+        ]),
+      );
 
       const results = mergeJobs({ rootDir: tmpRoot, logger: () => {} });
       assert.equal(results.length, 1);
@@ -193,14 +393,14 @@ describe('mergeJobsDocuments', () => {
     const base = {
       jobs: [
         { id: '1', name: 'base_job', schedule: '0 */4 * * *' },
-        { id: '3', name: 'base_only_job' }
-      ]
+        { id: '3', name: 'base_only_job' },
+      ],
     };
     const custom = {
       jobs: [
         { id: '2', name: 'custom_job' },
-        { id: '1', name: 'overridden_job', schedule: '0 */3 * * *' }
-      ]
+        { id: '1', name: 'overridden_job', schedule: '0 */3 * * *' },
+      ],
     };
 
     const merged = mergeJobsDocuments(base, custom);
@@ -282,7 +482,12 @@ describe('mergeJobsDocuments', () => {
 
   it('keeps id-matched jobs idempotent across repeated merges', () => {
     const base = { jobs: [{ id: '1', name: 'base_job', schedule: '0 */4 * * *' }] };
-    const custom = { jobs: [{ id: '1', name: 'custom_job', schedule: '0 */2 * * *' }, { id: '2', name: 'new_job' }] };
+    const custom = {
+      jobs: [
+        { id: '1', name: 'custom_job', schedule: '0 */2 * * *' },
+        { id: '2', name: 'new_job' },
+      ],
+    };
 
     const first = mergeJobsDocuments(base, custom);
     const second = mergeJobsDocuments(first, custom);
@@ -311,21 +516,31 @@ describe('mergeJobs idempotency (re-run stability)', () => {
     const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
 
-    fs.writeFileSync(path.join(cronDir, 'jobs.json'), JSON.stringify({
-      jobs: [{ name: 'base-job', schedule: '0 0 * * *' }]
-    }));
-    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
-      jobs: [
-        { name: 'custom-job', schedule: '0 */2 * * *' },
-        { id: '1', name: 'id-custom-job', schedule: '0 6 * * *' }
-      ]
-    }));
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.json'),
+      JSON.stringify({
+        jobs: [{ name: 'base-job', schedule: '0 0 * * *' }],
+      }),
+    );
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [
+          { name: 'custom-job', schedule: '0 */2 * * *' },
+          { id: '1', name: 'id-custom-job', schedule: '0 6 * * *' },
+        ],
+      }),
+    );
 
-    const readJobs = () => JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8')).jobs;
+    const readJobs = () =>
+      JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8')).jobs;
 
     mergeJobs({ rootDir: tmpRoot, logger: () => {} });
     const run1 = readJobs();
-    assert.deepEqual(run1.map((j: any) => j.name), ['base-job', 'custom-job', 'id-custom-job']);
+    assert.deepEqual(
+      run1.map((j: any) => j.name),
+      ['base-job', 'custom-job', 'id-custom-job'],
+    );
 
     mergeJobs({ rootDir: tmpRoot, logger: () => {} });
     const run2 = readJobs();
@@ -340,9 +555,12 @@ describe('mergeJobs idempotency (re-run stability)', () => {
     const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
     fs.mkdirSync(cronDir, { recursive: true });
 
-    fs.writeFileSync(path.join(cronDir, 'jobs.custom.json'), JSON.stringify({
-      jobs: [{ name: 'only-custom', payload: { a: 1 } }]
-    }));
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [{ name: 'only-custom', payload: { a: 1 } }],
+      }),
+    );
 
     mergeJobs({ rootDir: tmpRoot, logger: () => {} });
     const run1 = JSON.parse(fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8'));
@@ -351,5 +569,40 @@ describe('mergeJobs idempotency (re-run stability)', () => {
 
     assert.deepEqual(run2, run1);
     assert.equal(run2.jobs.length, 1);
+  });
+
+  it('is byte-stable across a clean run after a corrupt-base recovery run', () => {
+    // Ties the corrupt-base fallback into the f(f(b,c),c) contract: a run
+    // that recovered from a corrupt base (warning + reset to empty base)
+    // writes a well-formed output; the next run reads THAT as its base and
+    // must be byte-stable — no growth, no extra warnings.
+    const cronDir = path.join(tmpRoot, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(cronDir, { recursive: true });
+
+    fs.writeFileSync(path.join(cronDir, 'jobs.json'), '{corrupt: ');
+    fs.writeFileSync(
+      path.join(cronDir, 'jobs.custom.json'),
+      JSON.stringify({
+        jobs: [{ name: 'recovered-job', schedule: '0 0 * * *' }],
+      }),
+    );
+
+    const lines: string[] = [];
+    mergeJobs({ rootDir: tmpRoot, logger: (m) => lines.push(m) });
+    assert.ok(
+      lines.some((l) => l.includes('Warning:')),
+      'recovery run must log the corrupt-base warning',
+    );
+    const afterRecovery = fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8');
+
+    lines.length = 0;
+    mergeJobs({ rootDir: tmpRoot, logger: (m) => lines.push(m) });
+    const afterSecond = fs.readFileSync(path.join(cronDir, 'jobs.json'), 'utf8');
+
+    assert.equal(afterSecond, afterRecovery, '2nd run must be byte-identical to the recovery run');
+    assert.ok(
+      !lines.some((l) => l.includes('Warning:')),
+      `no warning expected on the clean 2nd run:\n${lines.join('\n')}`,
+    );
   });
 });

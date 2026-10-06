@@ -7,7 +7,10 @@ import path from 'node:path';
 export function atomicWriteFileSync(filePath: string, content: string): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmpPath = path.join(dir, `.${path.basename(filePath)}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
+  );
   try {
     fs.writeFileSync(tmpPath, content, 'utf8');
     fs.renameSync(tmpPath, filePath);
@@ -42,7 +45,11 @@ export interface EnsureSymlinkOptions {
  * - If linkPath is a plain file, it is removed (a single-file collision is
  *   low-risk) and the removal is logged.
  */
-export function ensureSymlinkSync(target: string, linkPath: string, options: EnsureSymlinkOptions = {}): void {
+export function ensureSymlinkSync(
+  target: string,
+  linkPath: string,
+  options: EnsureSymlinkOptions = {},
+): void {
   const log = options.logger || console.warn;
   const dir = path.dirname(linkPath);
   fs.mkdirSync(dir, { recursive: true });
@@ -60,7 +67,9 @@ export function ensureSymlinkSync(target: string, linkPath: string, options: Ens
       // contents are preserved for the user to review.
       const backupPath = uniqueBackupPath(linkPath);
       fs.renameSync(linkPath, backupPath);
-      log(`WARNING: ${linkPath} exists as a real directory. It was preserved at ${backupPath} before the symlink was created. Review the backup before deleting it.`);
+      log(
+        `WARNING: ${linkPath} exists as a real directory. It was preserved at ${backupPath} before the symlink was created. Review the backup before deleting it.`,
+      );
     } else {
       fs.unlinkSync(linkPath);
       log(`Removed existing file at ${linkPath} to create the symlink.`);
@@ -90,6 +99,46 @@ function uniqueBackupPath(linkPath: string): string {
 }
 
 /**
+ * Removes dangling symlinks in a link directory (entries whose target no
+ * longer resolves, e.g. after a common skill/plugin was deleted or renamed).
+ *
+ * - Only symlinks are ever removed: real directories and regular files are
+ *   NEVER touched (a real directory occupying a slot is the user's data —
+ *   see the `ensureSymlinkSync` backup-sibling contract).
+ * - A missing directory is a clean no-op (e.g. `~/.hermes/plugins` absent).
+ * - Honors `dryRun`: logs `Would remove stale symlink: <path>` and touches
+ *   nothing; a live run logs `Removed stale symlink: <path>`.
+ */
+export function pruneStaleSymlinks(dir: string, dryRun: boolean, log: (msg: string) => void): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return; // Directory does not exist — nothing to prune.
+    }
+    throw err;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink()) {
+      continue;
+    }
+    const linkPath = path.join(dir, entry.name);
+    try {
+      fs.statSync(linkPath); // follows the link; throws when dangling
+    } catch {
+      if (!dryRun) {
+        fs.unlinkSync(linkPath);
+        log(`Removed stale symlink: ${linkPath}`);
+      } else {
+        log(`Would remove stale symlink: ${linkPath}`);
+      }
+    }
+  }
+}
+
+/**
  * Discovers all profile directory names in profilesDir excluding 'common' and hidden dirs.
  */
 export function getProfileNames(profilesDir: string): string[] {
@@ -97,8 +146,11 @@ export function getProfileNames(profilesDir: string): string[] {
     return [];
   }
 
-  return fs.readdirSync(profilesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== 'common' && !entry.name.startsWith('.'))
+  return fs
+    .readdirSync(profilesDir, { withFileTypes: true })
+    .filter(
+      (entry) => entry.isDirectory() && entry.name !== 'common' && !entry.name.startsWith('.'),
+    )
     .map((entry) => entry.name)
     .sort();
 }

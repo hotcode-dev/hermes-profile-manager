@@ -69,6 +69,72 @@ describe('link operations', () => {
     assert.equal(fs.readlinkSync(hermesPluginLink), commonPlugins);
   });
 
+  it('linkPlugins with explicit profiles does NOT touch the global hermes plugins dir', () => {
+    // SCOPE GATE REGRESSION (the bug this fix addresses): step 2 of
+    // linkPlugins used to unconditionally symlink every common plugin into
+    // <hermesDir>/plugins, so `hpm link plugins -p x` (and `hpm sync -p x`)
+    // wrote into the global Hermes home even though -p scopes the run. An
+    // explicit non-empty profiles list must now skip the global half while
+    // still linking the named profiles (step 1 unchanged).
+    const commonPlugins = path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin');
+    fs.mkdirSync(commonPlugins, { recursive: true });
+    fs.writeFileSync(path.join(commonPlugins, 'index.py'), '# plugin');
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    const lines: string[] = [];
+    const results = linkPlugins({
+      rootDir: tmpDir,
+      hermesDir,
+      profiles: ['worker'],
+      logger: (m) => lines.push(m),
+    });
+
+    // Step 1: the explicitly targeted profile still gets its link.
+    const workerPluginLink = path.join(workerDir, 'plugins', 'test-plugin');
+    assert.ok(fs.existsSync(workerPluginLink));
+    assert.ok(fs.lstatSync(workerPluginLink).isSymbolicLink());
+    assert.equal(fs.readlinkSync(workerPluginLink), '../../common/plugins/test-plugin');
+
+    // Step 2: the global plugins dir must NOT have been created or written.
+    assert.ok(
+      !fs.existsSync(path.join(hermesDir, 'plugins')),
+      'no writes into the global hermes plugins dir',
+    );
+    assert.ok(
+      !lines.some((l) => l.includes(hermesDir)),
+      `no global-link log lines:\n${lines.join('\n')}`,
+    );
+    const hermesResults = results.filter((r) => r.type === 'hermes-plugin');
+    assert.equal(hermesResults.length, 0, 'no hermes-plugin results reported for a scoped run');
+  });
+
+  it('linkPlugins with an explicit EMPTY profiles list still links the global plugins dir (default behavior)', () => {
+    // An empty explicit list names no profile, so the run is a DEFAULT
+    // (untargeted) run — exactly like omitting `profiles` — and keeps the
+    // historical global-link behavior. (Mirrors the merge-step contract:
+    // an empty list falls back to auto-discovery and is NOT a scope gate.)
+    const commonPlugins = path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin');
+    fs.mkdirSync(commonPlugins, { recursive: true });
+    fs.writeFileSync(path.join(commonPlugins, 'index.py'), '# plugin');
+
+    const workerDir = path.join(tmpDir, 'profiles', 'worker');
+    fs.mkdirSync(workerDir, { recursive: true });
+
+    linkPlugins({ rootDir: tmpDir, hermesDir, profiles: [], logger: () => {} });
+
+    const hermesPluginLink = path.join(hermesDir, 'plugins', 'test-plugin');
+    assert.ok(
+      fs.existsSync(hermesPluginLink),
+      'empty profiles list is a default run: global link still created',
+    );
+    assert.ok(fs.lstatSync(hermesPluginLink).isSymbolicLink());
+    assert.equal(fs.readlinkSync(hermesPluginLink), commonPlugins);
+    // The discovered profile also got its link (auto-discovery fallback).
+    assert.ok(fs.existsSync(path.join(workerDir, 'plugins', 'test-plugin')));
+  });
+
   it('links profiles directory to hermes home directory', () => {
     const profilesDir = path.join(tmpDir, 'profiles');
     fs.mkdirSync(profilesDir, { recursive: true });
@@ -97,19 +163,22 @@ describe('link operations', () => {
     linkSkills({ rootDir: tmpDir, logger: (msg) => warnings.push(msg) });
 
     // (a) The user's files must NOT be destroyed — they live in a backup dir.
-    const backups = fs.readdirSync(path.join(tmpDir, 'profiles', 'worker', 'skills'))
+    const backups = fs
+      .readdirSync(path.join(tmpDir, 'profiles', 'worker', 'skills'))
       .filter((name) => name.startsWith('shared-skill.hpm-backup.'));
     assert.equal(backups.length, 1, 'expected exactly one backup directory');
     assert.equal(
       fs.readFileSync(path.join(profileSkillDir, '..', backups[0], 'user-notes.txt'), 'utf8'),
-      'precious user data'
+      'precious user data',
     );
     assert.equal(
       fs.readFileSync(path.join(profileSkillDir, '..', backups[0], 'nested', 'deep.txt'), 'utf8'),
-      'nested data'
+      'nested data',
     );
-    assert.ok(warnings.some((w) => w.includes('preserved') && w.includes(backups[0])),
-      'expected a prominent warning pointing at the backup path');
+    assert.ok(
+      warnings.some((w) => w.includes('preserved') && w.includes(backups[0])),
+      'expected a prominent warning pointing at the backup path',
+    );
 
     // (b) The link ends up pointing at the common skill.
     const lstat = fs.lstatSync(profileSkillDir);
@@ -134,21 +203,29 @@ describe('link operations', () => {
     linkPlugins({ rootDir: tmpDir, hermesDir, logger: (msg) => warnings.push(msg) });
 
     // Profile-side real dir preserved.
-    const profileBackups = fs.readdirSync(path.join(tmpDir, 'profiles', 'worker', 'plugins'))
+    const profileBackups = fs
+      .readdirSync(path.join(tmpDir, 'profiles', 'worker', 'plugins'))
       .filter((name) => name.startsWith('shared-plugin.hpm-backup.'));
     assert.equal(profileBackups.length, 1);
     assert.equal(
-      fs.readFileSync(path.join(profilePluginDir, '..', profileBackups[0], 'custom.config'), 'utf8'),
-      'local plugin config'
+      fs.readFileSync(
+        path.join(profilePluginDir, '..', profileBackups[0], 'custom.config'),
+        'utf8',
+      ),
+      'local plugin config',
     );
 
     // Hermes-side real dir preserved (running Hermes home must not be clobbered).
-    const hermesBackups = fs.readdirSync(path.join(hermesDir, 'plugins'))
+    const hermesBackups = fs
+      .readdirSync(path.join(hermesDir, 'plugins'))
       .filter((name) => name.startsWith('shared-plugin.hpm-backup.'));
     assert.equal(hermesBackups.length, 1);
     assert.equal(
-      fs.readFileSync(path.join(hermesPluginDir, '..', hermesBackups[0], 'live-state.json'), 'utf8'),
-      '{"installed":true}'
+      fs.readFileSync(
+        path.join(hermesPluginDir, '..', hermesBackups[0], 'live-state.json'),
+        'utf8',
+      ),
+      '{"installed":true}',
     );
     assert.ok(warnings.length >= 2, 'expected warnings for both collisions');
 
@@ -170,11 +247,13 @@ describe('link operations', () => {
     linkHermes({ rootDir: tmpDir, hermesDir, logger: (msg) => warnings.push(msg) });
 
     // Original contents preserved in a backup.
-    const backups = fs.readdirSync(hermesDir).filter((name) => name.startsWith('profiles.hpm-backup.'));
+    const backups = fs
+      .readdirSync(hermesDir)
+      .filter((name) => name.startsWith('profiles.hpm-backup.'));
     assert.equal(backups.length, 1);
     assert.equal(
       fs.readFileSync(path.join(hermesDir, backups[0], 'existing-profile-data.txt'), 'utf8'),
-      'do not lose me'
+      'do not lose me',
     );
     assert.ok(warnings.some((w) => w.includes('preserved') && w.includes(backups[0])));
 
@@ -185,8 +264,12 @@ describe('link operations', () => {
 
   it('dry run creates no symlinks and reports previews, not completed links', () => {
     // Real common skill + plugin sources so a live run WOULD create links.
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), {
+      recursive: true,
+    });
     const workerDir = path.join(tmpDir, 'profiles', 'worker');
     fs.mkdirSync(workerDir, { recursive: true });
 
@@ -200,15 +283,30 @@ describe('link operations', () => {
     linkHermes({ rootDir: tmpDir, hermesDir, dryRun: true, logger: (m) => hermesLines.push(m) });
 
     // No symlinks anywhere under profiles/ or in hermesDir.
-    assert.ok(!fs.existsSync(path.join(workerDir, 'skills', 'test-skill')), 'no profile skill link');
-    assert.ok(!fs.existsSync(path.join(workerDir, 'plugins', 'test-plugin')), 'no profile plugin link');
-    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins', 'test-plugin')), 'no hermes plugin link');
+    assert.ok(
+      !fs.existsSync(path.join(workerDir, 'skills', 'test-skill')),
+      'no profile skill link',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(workerDir, 'plugins', 'test-plugin')),
+      'no profile plugin link',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(hermesDir, 'plugins', 'test-plugin')),
+      'no hermes plugin link',
+    );
     assert.ok(!fs.existsSync(path.join(hermesDir, 'profiles')), 'no hermes profiles link');
 
     // None of the log lines claim a link was created.
     for (const lines of [skillLines, pluginLines, hermesLines]) {
-      assert.ok(!lines.some((l) => l.includes('Linked ')), `no "Linked" claim in:\n${lines.join('\n')}`);
-      assert.ok(lines.every((l) => l.startsWith('Would link ')), `preview wording in:\n${lines.join('\n')}`);
+      assert.ok(
+        !lines.some((l) => l.includes('Linked ')),
+        `no "Linked" claim in:\n${lines.join('\n')}`,
+      );
+      assert.ok(
+        lines.every((l) => l.startsWith('Would link ')),
+        `preview wording in:\n${lines.join('\n')}`,
+      );
     }
   });
 
@@ -218,7 +316,9 @@ describe('link operations', () => {
     // OUTSIDE the workspace (to <tmpdir>/pwned/skills/...). Without the fix,
     // a pre-seeded common skill source would make linkSkills create symlinks
     // at the attacker-chosen location. The name must be rejected first.
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'test-skill'), {
+      recursive: true,
+    });
     const escapeDir = pwnedDir();
     assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
 
@@ -228,34 +328,157 @@ describe('link operations', () => {
         assert.ok(err instanceof Error);
         assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
         return true;
-      }
+      },
     );
     // No symlink (and no directory) may have been created outside the
     // workspace, and the workspace itself must be untouched.
-    assert.ok(!fs.existsSync(escapeDir), `nothing may be created outside the workspace (found: ${escapeDir})`);
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'pwned')), 'no in-workspace escape either');
+    assert.ok(
+      !fs.existsSync(escapeDir),
+      `nothing may be created outside the workspace (found: ${escapeDir})`,
+    );
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles', 'pwned')),
+      'no in-workspace escape either',
+    );
   });
 
   it('linkPlugins rejects a path-traversal profile name BEFORE creating any symlink', () => {
     // SECURITY REGRESSION (same vector, plugin concern): without the fix,
     // linkPlugins would create symlinks under <tmpdir>/pwned/plugins/ and
     // in hermesDir. The name must be rejected before any side effect.
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'test-plugin'), {
+      recursive: true,
+    });
     const escapeDir = pwnedDir();
     assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
 
     assert.throws(
-      () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['../../pwned'], logger: () => {} }),
+      () =>
+        linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['../../pwned'], logger: () => {} }),
       (err: unknown) => {
         assert.ok(err instanceof Error);
         assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
         return true;
-      }
+      },
     );
-    assert.ok(!fs.existsSync(escapeDir), `nothing may be created outside the workspace (found: ${escapeDir})`);
+    assert.ok(
+      !fs.existsSync(escapeDir),
+      `nothing may be created outside the workspace (found: ${escapeDir})`,
+    );
     // The hermes-side plugin dir is also a side effect the validation must
     // precede.
-    assert.ok(!fs.existsSync(path.join(hermesDir, 'plugins')), 'no hermes-side plugin links on rejection');
+    assert.ok(
+      !fs.existsSync(path.join(hermesDir, 'plugins')),
+      'no hermes-side plugin links on rejection',
+    );
+  });
+
+  it('prunes dangling symlinks left by a renamed common skill and keeps real dirs untouched', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'skills');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    const workerSkills = path.join(tmpDir, 'profiles', 'worker', 'skills');
+    fs.mkdirSync(workerSkills, { recursive: true });
+
+    const lines: string[] = [];
+    linkSkills({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+    const alphaLink = path.join(workerSkills, 'alpha');
+    assert.ok(fs.lstatSync(alphaLink).isSymbolicLink());
+
+    // A profile-local real directory that pruning must never touch.
+    fs.mkdirSync(path.join(workerSkills, 'local-only'), { recursive: true });
+    fs.writeFileSync(path.join(workerSkills, 'local-only', 'data.txt'), 'keep me');
+
+    // The user renames the shared skill.
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    linkSkills({ rootDir: tmpDir, logger: (m) => lines.push(m) });
+
+    // The dangling alpha link is gone and its removal is logged.
+    assert.throws(() => fs.lstatSync(alphaLink), { code: 'ENOENT' });
+    assert.ok(
+      lines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(alphaLink)),
+      `expected a "Removed stale symlink" line for ${alphaLink} in:\n${lines.join('\n')}`,
+    );
+
+    // The renamed skill is linked normally.
+    assert.equal(fs.readlinkSync(path.join(workerSkills, 'beta')), '../../common/skills/beta');
+
+    // The real directory is left completely alone (no prune, no backup).
+    assert.ok(fs.statSync(path.join(workerSkills, 'local-only')).isDirectory());
+    assert.equal(
+      fs.readFileSync(path.join(workerSkills, 'local-only', 'data.txt'), 'utf8'),
+      'keep me',
+    );
+  });
+
+  it('prunes dangling symlinks left by a renamed common plugin (profile and ~/.hermes/plugins)', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'plugins');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+
+    const lines: string[] = [];
+    linkPlugins({ rootDir: tmpDir, hermesDir, logger: (m) => lines.push(m) });
+    const profileLink = path.join(tmpDir, 'profiles', 'worker', 'plugins', 'alpha');
+    const hermesLink = path.join(hermesDir, 'plugins', 'alpha');
+    assert.ok(fs.lstatSync(profileLink).isSymbolicLink());
+    assert.ok(fs.lstatSync(hermesLink).isSymbolicLink());
+
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    linkPlugins({ rootDir: tmpDir, hermesDir, logger: (m) => lines.push(m) });
+
+    // Both dangling links are gone and both removals are logged.
+    assert.throws(() => fs.lstatSync(profileLink), { code: 'ENOENT' });
+    assert.throws(() => fs.lstatSync(hermesLink), { code: 'ENOENT' });
+    assert.ok(
+      lines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(hermesLink)),
+      `expected a "Removed stale symlink" line for ${hermesLink} in:\n${lines.join('\n')}`,
+    );
+
+    // The renamed plugin is linked in both places.
+    assert.equal(
+      fs.readlinkSync(path.join(tmpDir, 'profiles', 'worker', 'plugins', 'beta')),
+      '../../common/plugins/beta',
+    );
+    assert.equal(
+      fs.readlinkSync(path.join(hermesDir, 'plugins', 'beta')),
+      path.join(common, 'beta'),
+    );
+  });
+
+  it('dry run reports stale symlinks without removing them; the next live run removes them', () => {
+    const common = path.join(tmpDir, 'profiles', 'common', 'skills');
+    fs.mkdirSync(path.join(common, 'alpha'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'worker'), { recursive: true });
+
+    linkSkills({ rootDir: tmpDir, logger: () => {} });
+    const alphaLink = path.join(tmpDir, 'profiles', 'worker', 'skills', 'alpha');
+    const betaLink = path.join(tmpDir, 'profiles', 'worker', 'skills', 'beta');
+
+    fs.renameSync(path.join(common, 'alpha'), path.join(common, 'beta'));
+
+    const dryLines: string[] = [];
+    linkSkills({ rootDir: tmpDir, dryRun: true, logger: (m) => dryLines.push(m) });
+
+    // Reported as a preview, but nothing is removed or created.
+    assert.ok(
+      dryLines.some((l) => l.startsWith('Would remove stale symlink:') && l.includes(alphaLink)),
+      `expected a "Would remove stale symlink" line in:\n${dryLines.join('\n')}`,
+    );
+    assert.ok(!dryLines.some((l) => l.startsWith('Removed ')), 'dry run must not claim removals');
+    assert.ok(fs.lstatSync(alphaLink).isSymbolicLink(), 'dangling link must survive the dry run');
+    assert.ok(!fs.existsSync(betaLink), 'dry run must not create the new link');
+
+    const liveLines: string[] = [];
+    linkSkills({ rootDir: tmpDir, logger: (m) => liveLines.push(m) });
+
+    // The live run removes the stale link, links the renamed skill, and logs it.
+    assert.throws(() => fs.lstatSync(alphaLink), { code: 'ENOENT' });
+    assert.ok(
+      liveLines.some((l) => l.startsWith('Removed stale symlink:') && l.includes(alphaLink)),
+      `expected a "Removed stale symlink" line in:\n${liveLines.join('\n')}`,
+    );
+    assert.equal(fs.readlinkSync(betaLink), '../../common/skills/beta');
   });
 
   it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
@@ -263,14 +486,65 @@ describe('link operations', () => {
       assert.throws(
         () => linkSkills({ rootDir: tmpDir, profiles: [name], logger: () => {} }),
         /Invalid profile name/,
-        `linkSkills expected "${name}" to be rejected`
+        `linkSkills expected "${name}" to be rejected`,
       );
       assert.throws(
         () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: [name], logger: () => {} }),
         /Invalid profile name/,
-        `linkPlugins expected "${name}" to be rejected`
+        `linkPlugins expected "${name}" to be rejected`,
       );
     }
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been created outside the workspace');
+  });
+
+  it('linkSkills/linkPlugins reject the reserved name "common" BEFORE the self-symlink corruption', () => {
+    // RESERVED-NAME REGRESSION (probe 3 of zf-hpm-e420a204): with a skill at
+    // profiles/common/skills/myskill, `linkSkills -p common` used to see the
+    // real shared dir at the SAME path as the link target, move the ACTUAL
+    // shared skill aside to myskill.hpm-backup.<ts>, and replace it with a
+    // self-referential symlink (../../common/skills/myskill) — leaving the
+    // shared skill dangling for EVERY profile. The reserved name must be
+    // rejected during the up-front validation loop, before any rename or
+    // symlink side effect.
+    const commonSkillDir = path.join(tmpDir, 'profiles', 'common', 'skills', 'myskill');
+    fs.mkdirSync(commonSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(commonSkillDir, 'SKILL.md'), '# myskill\n');
+    const commonPluginDir = path.join(tmpDir, 'profiles', 'common', 'plugins', 'myplugin');
+    fs.mkdirSync(commonPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(commonPluginDir, 'README.md'), '# myplugin\n');
+
+    for (const invoke of [
+      () => linkSkills({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      () => linkPlugins({ rootDir: tmpDir, hermesDir, profiles: ['common'], logger: () => {} }),
+    ]) {
+      assert.throws(invoke, (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      });
+    }
+
+    // The shared skill is still the REAL directory (no self-symlink, no
+    // .hpm-backup move): no symlink anywhere under the shared skills dir and
+    // no hpm-backup artifact was created.
+    assert.ok(
+      !fs.lstatSync(commonSkillDir).isSymbolicLink(),
+      'shared skill must not have become a symlink',
+    );
+    assert.equal(
+      fs
+        .readdirSync(path.join(tmpDir, 'profiles', 'common', 'skills'))
+        .filter((n) => n.includes('hpm-backup')).length,
+      0,
+      'no .hpm-backup artifact may have been created',
+    );
+    assert.ok(
+      !fs.lstatSync(commonPluginDir).isSymbolicLink(),
+      'shared plugin must not have become a symlink',
+    );
+    // The shared sources are byte-for-byte intact.
+    assert.equal(fs.readFileSync(path.join(commonSkillDir, 'SKILL.md'), 'utf8'), '# myskill\n');
+    assert.equal(fs.readFileSync(path.join(commonPluginDir, 'README.md'), 'utf8'), '# myplugin\n');
   });
 });

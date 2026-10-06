@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { parse as parseYaml } from 'yaml';
-import { initWorkspace } from '../src/core/init.js';
+import { initWorkspace, InitFilesystemError } from '../src/core/init.js';
 
 describe('initWorkspace', () => {
   let tmpDir: string;
@@ -28,7 +28,7 @@ describe('initWorkspace', () => {
     const result = initWorkspace({
       targetDir: tmpDir,
       profileName: 'agent-1',
-      logger: () => {}
+      logger: () => {},
     });
 
     assert.equal(result.profileName, 'agent-1');
@@ -55,7 +55,7 @@ describe('initWorkspace', () => {
     initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
-      logger: () => {}
+      logger: () => {},
     });
 
     const customConfig = path.join(tmpDir, 'profiles', 'main', 'config.custom.yaml');
@@ -65,7 +65,7 @@ describe('initWorkspace', () => {
     const secondResult = initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
-      logger: () => {}
+      logger: () => {},
     });
 
     assert.equal(secondResult.createdFiles.length, 0);
@@ -77,10 +77,110 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'main',
       force: true,
-      logger: () => {}
+      logger: () => {},
     });
 
     assert.equal(thirdResult.createdFiles.length, 5);
+  });
+
+  it('throws InitFilesystemError naming the offending path when profiles/common is a regular file (EEXIST)', () => {
+    // A pre-existing collision — e.g. a stray artifact or a symlink that
+    // resolves to a file where the 'common' DIRECTORY belongs — used to
+    // escape initWorkspace as a RAW `EEXIST ... mkdir '.../profiles/common'`
+    // with no context about which path failed, and the CLI mislabeled it as
+    // an "invalid profile name". Now it must throw a typed
+    // InitFilesystemError that identifies the failing file.
+    fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'profiles', 'common'), 'not a directory\n');
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        force: true,
+        runSync: false,
+        logger: () => {},
+      });
+      assert.fail('expected initWorkspace to throw on the profiles/common collision');
+    } catch (err) {
+      assert.ok(err instanceof InitFilesystemError, `expected InitFilesystemError, got ${err}`);
+      // The message identifies the FAILING FILE, not a bare errno and not a
+      // profile-name complaint.
+      assert.match((err as Error).message, /Failed to mkdir profiles\/common/);
+      assert.ok(
+        !/Invalid profile name/.test((err as Error).message),
+        `a filesystem collision must not be reported as a name error:\n${err}`,
+      );
+    }
+  });
+
+  it('throws InitFilesystemError (not a silent skip) when a scaffolding file path is a directory (EISDIR)', () => {
+    // A directory where a scaffolding FILE belongs is not a legitimate
+    // "existing file": the pre-fix behavior silently counted it as skipped
+    // (createdFiles=4 skipped=1) because existsSync passed and the write
+    // failure only surfaced as a raw EISDIR. It must instead throw naming
+    // the offending path.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), { recursive: true });
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        runSync: false,
+        logger: () => {},
+      });
+      assert.fail('expected initWorkspace to throw on the config.yaml-is-a-directory collision');
+    } catch (err) {
+      assert.ok(err instanceof InitFilesystemError, `expected InitFilesystemError, got ${err}`);
+      assert.match((err as Error).message, /Failed to writeFile profiles\/common\/config\.yaml/);
+      assert.match((err as Error).message, /EISDIR/);
+    }
+  });
+
+  it('throws InitFilesystemError (EACCES) when a scaffolding parent directory is not writable', () => {
+    // A read-only parent directory makes the scaffolding mkdir fail with
+    // EACCES. (Skipped when running as root: root bypasses DAC permission
+    // checks, so the errno cannot be reproduced hermetically.)
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common'), { recursive: true });
+    const target = path.join(tmpDir, 'profiles', 'common', 'config.yaml');
+    fs.chmodSync(path.dirname(target), 0o555);
+    // Root cannot reproduce EACCES this way.
+    if (process.getuid && process.getuid() === 0) {
+      fs.chmodSync(path.dirname(target), 0o755);
+      // eslint-disable-next-line no-console
+      console.log('skipping EACCES case: running as root');
+      return;
+    }
+
+    try {
+      initWorkspace({
+        targetDir: tmpDir,
+        profileName: 'worker',
+        runSync: false,
+        logger: () => {},
+      });
+      assert.fail('expected initWorkspace to throw on the EACCES collision');
+    } catch (err) {
+      assert.ok(err instanceof InitFilesystemError, `expected InitFilesystemError, got ${err}`);
+      assert.match((err as Error).message, /EACCES/);
+      assert.match((err as Error).message, /Failed to (mkdir|writeFile) profiles\/common/);
+    } finally {
+      fs.chmodSync(path.dirname(target), 0o755);
+    }
+  });
+
+  it('still skips a LEGITIMATE pre-existing regular file (no false positive from the errno wrapping)', () => {
+    // The EEXIST/EISDIR wrapping must not break the documented no-force
+    // skip behavior for real existing files.
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', runSync: false, logger: () => {} });
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: false,
+      logger: () => {},
+    });
+    assert.equal(result.createdFiles.length, 0);
+    assert.equal(result.skippedFiles.length, 5);
   });
 
   it('completes auto-sync without a warning when no profile has cron/jobs.custom.json', () => {
@@ -89,7 +189,7 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'main',
       runSync: false,
-      logger: () => {}
+      logger: () => {},
     });
 
     // Simulate a valid-but-common workspace with config + soul customization
@@ -99,14 +199,8 @@ describe('initWorkspace', () => {
 
     const workerDir = path.join(tmpDir, 'profiles', 'worker');
     fs.mkdirSync(workerDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(workerDir, 'config.custom.yaml'),
-      `temperature: 0.2\n`
-    );
-    fs.writeFileSync(
-      path.join(workerDir, 'SOUL.custom.md'),
-      '# Worker Identity\n'
-    );
+    fs.writeFileSync(path.join(workerDir, 'config.custom.yaml'), `temperature: 0.2\n`);
+    fs.writeFileSync(path.join(workerDir, 'SOUL.custom.md'), '# Worker Identity\n');
     // No cron/jobs.custom.json for worker either.
 
     const logs: string[] = [];
@@ -114,7 +208,7 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'main',
       runSync: true,
-      logger: (msg) => logs.push(msg)
+      logger: (msg) => logs.push(msg),
     });
 
     // The initial sync never throws (syncAll records failures in the
@@ -122,7 +216,7 @@ describe('initWorkspace', () => {
     // a real syncResult is set.
     assert.ok(
       !logs.some((l) => l.includes('Warning during initial sync')),
-      `unexpected sync warning captured: ${JSON.stringify(logs)}`
+      `unexpected sync warning captured: ${JSON.stringify(logs)}`,
     );
 
     assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
@@ -142,21 +236,22 @@ describe('initWorkspace', () => {
     assert.equal(parsed.temperature, 0.2);
   });
 
-  it('records a broken top-level common config in syncResult.syncError instead of throwing or warning', () => {
+  it('records a broken top-level common config in syncResult.stepErrors (and syncError) instead of throwing or warning', () => {
     // Seed the workspace, then corrupt the shared common config into a
     // non-object YAML document (a list). init must not overwrite it
     // (no force), and the initial sync must surface the failure through
-    // result.syncResult.syncError — not a throw, not a swallowed warning.
+    // result.syncResult.stepErrors.config (and the backward-compat
+    // result.syncResult.syncError) — not a throw, not a swallowed warning.
     initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
       runSync: false,
-      logger: () => {}
+      logger: () => {},
     });
 
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      '- just\n- a\n- list\n'
+      '- just\n- a\n- list\n',
     );
 
     const logs: string[] = [];
@@ -164,35 +259,43 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'main',
       runSync: true,
-      logger: (msg) => logs.push(msg)
+      logger: (msg) => logs.push(msg),
     });
 
     assert.ok(result.syncResult, 'post-init sync should run and populate syncResult');
-    assert.match(
-      result.syncResult.syncError ?? '',
-      /Common config must be a YAML object/
-    );
-    // The merge step aborted before the profiles, so the arrays are empty.
+    // The structured per-step carrier names the failing step...
+    assert.match(result.syncResult.stepErrors.config ?? '', /Common config must be a YAML object/);
+    assert.equal(result.syncResult.stepErrors.jobs, undefined);
+    assert.equal(result.syncResult.stepErrors.soul, undefined);
+    // ...and the deprecated single-field carrier still carries the message
+    // (backward-compat for the public SyncAllResult API).
+    assert.match(result.syncResult.syncError ?? '', /Common config must be a YAML object/);
+    // The config step aborted before the profiles, so its array is empty...
     assert.equal(result.syncResult.config.length, 0);
-    assert.equal(result.syncResult.jobs.length, 0);
-    assert.equal(result.syncResult.soul.length, 0);
-    // No compiled config.yaml / SOUL.md were produced for the profile.
+    // ...but the jobs/soul steps STILL RAN (step isolation): the main
+    // profile's valid custom sources merged and wrote their outputs.
+    const mainJobs = result.syncResult.jobs.find((r) => r.profile === 'main');
+    assert.equal(mainJobs?.status, 'merged');
+    const mainSoul = result.syncResult.soul.find((r) => r.profile === 'main');
+    assert.equal(mainSoul?.status, 'merged');
+    // No compiled config.yaml was produced (config step failed), but the
+    // SOUL.md from the (still-intact) soul step now exists.
     assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'config.yaml')));
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
     // The old throw-swallowing behavior is gone: no warning line, no throw.
     assert.ok(
       !logs.some((l) => l.includes('Warning during initial sync')),
-      `unexpected sync warning captured: ${JSON.stringify(logs)}`
+      `unexpected sync warning captured: ${JSON.stringify(logs)}`,
     );
     assert.ok(
       !logs.some((l) => l.includes('Error merging')),
-      `unexpected error log line: ${JSON.stringify(logs)}`
+      `unexpected error log line: ${JSON.stringify(logs)}`,
     );
     // Pre-existing files were preserved (init without force does not
     // overwrite the broken common config).
     assert.match(
       fs.readFileSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), 'utf8'),
-      /- just/
+      /- just/,
     );
   });
 
@@ -202,7 +305,7 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'agent-1',
       dryRun: true,
-      logger: (msg) => logs.push(msg)
+      logger: (msg) => logs.push(msg),
     });
 
     // The five scaffolding files are reported as would-be creates...
@@ -210,25 +313,28 @@ describe('initWorkspace', () => {
     assert.equal(result.skippedFiles.length, 0);
     // ...but NOTHING was written: no profiles/ tree at all (files, common
     // skills/plugins directories, or compiled sync outputs).
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'dryRun init must not create profiles/');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'dryRun init must not create profiles/',
+    );
     assert.ok(
       !fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml')),
-      'dryRun init must not write common config.yaml'
+      'dryRun init must not write common config.yaml',
     );
     assert.ok(
       !fs.existsSync(path.join(tmpDir, 'profiles', 'agent-1', 'cron', 'jobs.custom.json')),
-      'dryRun init must not write jobs.custom.json'
+      'dryRun init must not write jobs.custom.json',
     );
     // The initial sync was skipped entirely: no syncResult, no compiled
     // outputs, and the dry-run notice was logged instead.
     assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
     assert.ok(
       logs.some((l) => l.includes('Dry run: initial sync skipped')),
-      `dry-run sync notice missing: ${JSON.stringify(logs)}`
+      `dry-run sync notice missing: ${JSON.stringify(logs)}`,
     );
     assert.ok(
       logs.some((l) => l.includes('Would create:')),
-      `would-create preview missing: ${JSON.stringify(logs)}`
+      `would-create preview missing: ${JSON.stringify(logs)}`,
     );
   });
 
@@ -238,23 +344,107 @@ describe('initWorkspace', () => {
     initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
-      logger: () => {}
+      logger: () => {},
     });
-    const before = new Set(
-      collectAllPaths(path.join(tmpDir, 'profiles'))
-    );
+    const before = new Set(collectAllPaths(path.join(tmpDir, 'profiles')));
 
     const result = initWorkspace({
       targetDir: tmpDir,
       profileName: 'main',
       dryRun: true,
-      logger: () => {}
+      logger: () => {},
     });
 
     // No new files or directories appeared.
     assert.deepEqual(new Set(collectAllPaths(path.join(tmpDir, 'profiles'))), before);
     // No sync ran (a real sync on this workspace would write compiled outputs).
     assert.equal(result.syncResult, undefined, 'dryRun init must not run the initial sync');
+  });
+
+  it('dryRun honors the exists/!force skip contract: existing files are skipped, not "would create"', () => {
+    // Regression: the old dry-run branch reported EVERY file as a would-be
+    // create before checking existence, so `init --dry-run` on a fully
+    // scaffolded workspace listed all 5 existing files under
+    // createdFiles ("Would create") and the CLI's "Files to create" count
+    // overstated what a real run would actually create.
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', logger: () => {} });
+
+    const logs: string[] = [];
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      logger: (msg) => logs.push(msg),
+    });
+
+    // All five scaffolding files already exist (no force) → skipped, none would create.
+    assert.equal(result.createdFiles.length, 0);
+    assert.equal(result.skippedFiles.length, 5);
+    // No "Would create" lines for existing files...
+    assert.ok(
+      !logs.some((l) => l.includes('Would create:')),
+      `no "Would create" for existing files: ${JSON.stringify(logs)}`,
+    );
+    // ...and still nothing was written (no new files, existing contents intact).
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'x')),
+      'dryRun must not create new entries',
+    );
+    assert.ok(
+      fs
+        .readFileSync(path.join(tmpDir, 'profiles', 'main', 'config.custom.yaml'), 'utf8')
+        .includes('Profile Custom Configuration'),
+    );
+    // The dry-run sync notice still fires and no sync ran.
+    assert.ok(logs.some((l) => l.includes('Dry run: initial sync skipped')));
+    assert.equal(result.syncResult, undefined);
+  });
+
+  it('dryRun on a partially pre-seeded workspace splits created vs skipped per file', () => {
+    // Seed only the common scaffolding; the per-profile files are missing.
+    initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      runSync: false,
+      logger: () => {},
+    });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'config.custom.yaml'), { force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.custom.md'), { force: true });
+    fs.rmSync(path.join(tmpDir, 'profiles', 'main', 'cron', 'jobs.custom.json'), { force: true });
+
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      logger: () => {},
+    });
+
+    // 3 missing profile files → would create; 2 existing common files → skipped.
+    assert.equal(result.createdFiles.length, 3);
+    assert.equal(result.skippedFiles.length, 2);
+    assert.ok(
+      result.createdFiles.every((f) => f.startsWith(path.join(tmpDir, 'profiles', 'main', ''))),
+      `only missing profile files may be would-create: ${JSON.stringify(result.createdFiles)}`,
+    );
+  });
+
+  it('dryRun with force still reports existing files as would-be creates (preview of overwrite)', () => {
+    initWorkspace({ targetDir: tmpDir, profileName: 'main', logger: () => {} });
+
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'main',
+      dryRun: true,
+      force: true,
+      logger: () => {},
+    });
+
+    // force lifts the skip: all 5 files would be (re)written by a real run.
+    assert.equal(result.createdFiles.length, 5);
+    assert.equal(result.skippedFiles.length, 0);
+    // ...and dryRun still touches nothing.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'x')));
+    assert.equal(result.syncResult, undefined);
   });
 
   it('rejects a path-traversal profile name ("../../pwned") and writes NO files outside targetDir', () => {
@@ -277,9 +467,9 @@ describe('initWorkspace', () => {
           profileName: '../../pwned',
           force: true,
           runSync: false,
-          logger: () => {}
+          logger: () => {},
         }),
-      /Invalid profile name/
+      /Invalid profile name/,
     );
 
     // Nothing escaped the workspace: no <ws>/pwned/ sibling, and no
@@ -290,18 +480,18 @@ describe('initWorkspace', () => {
 
   it('rejects every non-path-safe profile name variant', () => {
     const badNames = [
-      'a/b',        // forward slash separator
-      'a\\b',       // backslash separator
-      '..',         // parent traversal
-      '.',          // self
+      'a/b', // forward slash separator
+      'a\\b', // backslash separator
+      '..', // parent traversal
+      '.', // self
       'main/../other', // embedded traversal segment
-      '../../etc',  // deep traversal
-      '/abs/path',  // absolute path (leading slash)
-      'C:\\abs',    // Windows absolute path
-      'a//b',       // double slash
-      'name name',  // space is not in the allowlist
-      'naüme',      // non-ASCII outside the allowlist
-      'a.b/c'       // dot + slash mix
+      '../../etc', // deep traversal
+      '/abs/path', // absolute path (leading slash)
+      'C:\\abs', // Windows absolute path
+      'a//b', // double slash
+      'name name', // space is not in the allowlist
+      'naüme', // non-ASCII outside the allowlist
+      'a.b/c', // dot + slash mix
     ];
     for (const name of badNames) {
       assert.throws(
@@ -310,15 +500,15 @@ describe('initWorkspace', () => {
             targetDir: tmpDir,
             profileName: name,
             runSync: false,
-            logger: () => {}
+            logger: () => {},
           }),
         /Invalid profile name/,
-        `expected profileName "${name}" to be rejected`
+        `expected profileName "${name}" to be rejected`,
       );
       // The throw happens before any side effect: no profiles/ tree.
       assert.ok(
         !fs.existsSync(path.join(tmpDir, 'profiles')),
-        `no side effects expected after rejecting "${name}"`
+        `no side effects expected after rejecting "${name}"`,
       );
     }
   });
@@ -331,13 +521,55 @@ describe('initWorkspace', () => {
             targetDir: tmpDir,
             profileName: name,
             runSync: false,
-            logger: () => {}
+            logger: () => {},
           }),
         /Invalid profile name/,
-        `expected empty/whitespace profileName ${JSON.stringify(name)} to be rejected`
+        `expected empty/whitespace profileName ${JSON.stringify(name)} to be rejected`,
       );
       assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
     }
+  });
+
+  it('rejects the reserved profile name "common" BEFORE any filesystem side effect', () => {
+    // RESERVED-NAME REGRESSION: profiles/common/ is the SHARED common profile
+    // directory (base source for every merge/link step). Without the
+    // validator reserving it, initWorkspace would scaffold the per-profile
+    // custom files (config.custom.yaml, SOUL.custom.md,
+    // cron/jobs.custom.json) INTO the shared common dir while getProfileNames
+    // deliberately excludes "common" from the discovered profile list —
+    // an asymmetric contract that corrupts the shared base.
+    assert.throws(
+      () =>
+        initWorkspace({
+          targetDir: tmpDir,
+          profileName: 'common',
+          runSync: false,
+          logger: () => {},
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      },
+    );
+    // The throw happens before any side effect: no profiles/ tree at all.
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')));
+  });
+
+  it('still accepts names that merely contain "common" (e.g. "common-worker")', () => {
+    // Exact-match reservation only: "common-worker" stays a valid per-profile
+    // name and must NOT be conflated with the reserved shared dir.
+    const result = initWorkspace({
+      targetDir: tmpDir,
+      profileName: 'common-worker',
+      runSync: false,
+      logger: () => {},
+    });
+    assert.equal(result.profileName, 'common-worker');
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'common-worker', 'config.custom.yaml')));
+    // The shared common dir is untouched by the scaffolding (no custom files in it).
+    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles', 'common', 'config.custom.yaml')));
   });
 
   it('still scaffolds a valid profile name with dots, dashes, and underscores (regression guard)', () => {
@@ -345,13 +577,11 @@ describe('initWorkspace', () => {
       targetDir: tmpDir,
       profileName: 'agent-1',
       runSync: false,
-      logger: () => {}
+      logger: () => {},
     });
     assert.equal(result.profileName, 'agent-1');
     assert.equal(result.createdFiles.length, 5);
-    assert.ok(
-      fs.existsSync(path.join(tmpDir, 'profiles', 'agent-1', 'config.custom.yaml'))
-    );
+    assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'agent-1', 'config.custom.yaml')));
 
     // Names with dots and underscores (legal allowlist members) also pass.
     for (const name of ['agent_2', 'agent.3']) {
@@ -359,12 +589,10 @@ describe('initWorkspace', () => {
         targetDir: tmpDir,
         profileName: name,
         runSync: false,
-        logger: () => {}
+        logger: () => {},
       });
       assert.equal(r.profileName, name);
-      assert.ok(
-        fs.existsSync(path.join(tmpDir, 'profiles', name, 'config.custom.yaml'))
-      );
+      assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', name, 'config.custom.yaml')));
     }
   });
 });

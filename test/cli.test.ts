@@ -13,7 +13,9 @@ import { collectMergeErrors, MergeStatusResult } from '../src/utils/merge-result
 const CLI_PATH = path.join(import.meta.dirname, '..', 'src', 'cli.ts');
 // Absolute path to the tsx ESM loader: the CLI is spawned with a cwd inside
 // the temporary workspace, where the bare 'tsx' specifier would not resolve.
-const TSX_LOADER = createRequire(path.join(import.meta.dirname, '..', 'package.json')).resolve('tsx');
+const TSX_LOADER = createRequire(path.join(import.meta.dirname, '..', 'package.json')).resolve(
+  'tsx',
+);
 
 /**
  * Builds a minimal valid workspace:
@@ -30,7 +32,10 @@ function scaffoldWorkspace(rootDir: string): void {
   fs.writeFileSync(path.join(commonDir, 'SOUL.md'), '# Common Base\n');
 }
 
-function runCli(args: string[], opts: { cwd?: string; quiet?: boolean } = {}): {
+function runCli(
+  args: string[],
+  opts: { cwd?: string; quiet?: boolean } = {},
+): {
   status: number | null;
   stdout: string;
   stderr: string;
@@ -42,38 +47,67 @@ function runCli(args: string[], opts: { cwd?: string; quiet?: boolean } = {}): {
     env: {
       ...process.env,
       // Keep the child away from the developer's real Hermes home.
-      HERMES_HOME: opts.cwd ? path.join(opts.cwd, 'fake-hermes') : os.tmpdir()
-    }
+      HERMES_HOME: opts.cwd ? path.join(opts.cwd, 'fake-hermes') : os.tmpdir(),
+    },
   });
   return {
     status: result.status,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? ''
+    stderr: result.stderr ?? '',
   };
 }
+
+// The package version (single source of truth) — the --version test below
+// asserts the CLI reports exactly this value, so a future bump that drifts
+// the CLI literal would fail here.
+const PACKAGE_VERSION = (
+  JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'package.json'), 'utf8')) as {
+    version: string;
+  }
+).version;
+
+describe('CLI --version reports the package.json version', () => {
+  it('--version prints the version declared in package.json and exits 0', () => {
+    const { status, stdout } = runCli(['--version']);
+    assert.equal(status, 0);
+    assert.equal(stdout.trim(), PACKAGE_VERSION);
+  });
+});
 
 describe('merge-results helper (pure decision logic)', () => {
   it('collectMergeErrors returns only status === "error" entries, across multiple arrays', () => {
     const config: MergeStatusResult[] = [
       { profile: 'good', outputPath: '/x', status: 'merged' },
-      { profile: 'bad', outputPath: '/y', status: 'error', error: 'Custom config is not a valid YAML object: /y' }
+      {
+        profile: 'bad',
+        outputPath: '/y',
+        status: 'error',
+        error: 'Custom config is not a valid YAML object: /y',
+      },
     ];
     const jobs: MergeStatusResult[] = [
       { profile: 'none', outputPath: '/z', status: 'skipped' },
-      { profile: 'broken', outputPath: '/w', status: 'error', error: 'Jobs custom file is not valid JSON: /w' }
+      {
+        profile: 'broken',
+        outputPath: '/w',
+        status: 'error',
+        error: 'Jobs custom file is not valid JSON: /w',
+      },
     ];
     const errors = collectMergeErrors(config, jobs, []);
     assert.equal(errors.length, 2);
-    assert.deepEqual(
-      errors.map((e) => e.profile).sort(),
-      ['bad', 'broken']
-    );
+    assert.deepEqual(errors.map((e) => e.profile).sort(), ['bad', 'broken']);
   });
 
   it('collectMergeErrors treats skipped entries as non-failures', () => {
     const skipped: MergeStatusResult[] = [
       { profile: 'a', outputPath: '/a', status: 'skipped' },
-      { profile: 'b', outputPath: '/b', status: 'skipped', error: 'Profile custom config not found: /b' }
+      {
+        profile: 'b',
+        outputPath: '/b',
+        status: 'skipped',
+        error: 'Profile custom config not found: /b',
+      },
     ];
     assert.deepEqual(collectMergeErrors(skipped), []);
   });
@@ -114,7 +148,10 @@ describe('core modules emit status:"error" entries without throwing', () => {
     const goodDir = path.join(tmpDir, 'profiles', 'good', 'cron');
     fs.mkdirSync(badDir, { recursive: true });
     fs.mkdirSync(goodDir, { recursive: true });
-    fs.writeFileSync(path.join(goodDir, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: '1' }] }) + '\n');
+    fs.writeFileSync(
+      path.join(goodDir, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n',
+    );
     fs.writeFileSync(path.join(badDir, 'jobs.custom.json'), '{ not valid json');
 
     const results = mergeJobs({ rootDir: tmpDir, logger: () => {} });
@@ -176,16 +213,26 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     fs.writeFileSync(path.join(goodDir, 'SOUL.custom.md'), '# good custom soul\n');
   }
 
-  function assertFailingRun(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
+  function assertFailingRun(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string,
+  ): void {
     // Non-zero exit ...
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // ... no success banner ...
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
     // ... and the per-profile error is visible.
     const shown = r.stdout + r.stderr;
     assert.ok(
       shown.includes('bad') && shown.toLowerCase().includes('error'),
-      `${label}: failure output must name the failing profile:\n${shown}`
+      `${label}: failure output must name the failing profile:\n${shown}`,
     );
   }
 
@@ -207,7 +254,11 @@ describe('CLI exit status reflects per-profile merge failures', () => {
   it('sync exits 0 with the success banner when all entries are merged or skipped', () => {
     scaffoldCleanWorkspace();
     const r = runCli(['sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
 
@@ -227,7 +278,11 @@ describe('CLI exit status reflects per-profile merge failures', () => {
   it('merge config exits 0 with the banner when only skipped entries remain', () => {
     scaffoldCleanWorkspace();
     const r = runCli(['merge', 'config'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
   });
 
@@ -248,14 +303,18 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
 
     const r = runCli(['merge', 'config'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `success banner must not print:\n${r.stdout}`);
     // The SPECIFIC per-profile diagnostic is surfaced...
     assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
     // ...and the GENERIC top-level "nothing to merge" message is NOT emitted.
     assert.ok(
       !r.stderr.includes('No profiles with valid config.custom.yaml could be merged'),
-      `generic top-level message must not be reported:\n${r.stderr}`
+      `generic top-level message must not be reported:\n${r.stderr}`,
     );
   });
 
@@ -277,7 +336,10 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     const goodDir = path.join(tmpDir, 'profiles', 'good', 'cron');
     fs.mkdirSync(badDir, { recursive: true });
     fs.mkdirSync(goodDir, { recursive: true });
-    fs.writeFileSync(path.join(goodDir, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: '1' }] }) + '\n');
+    fs.writeFileSync(
+      path.join(goodDir, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n',
+    );
     fs.writeFileSync(path.join(badDir, 'jobs.custom.json'), '{ not valid json');
 
     const r = runCli(['merge', 'jobs'], { cwd: tmpDir });
@@ -288,10 +350,17 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     scaffoldWorkspace(tmpDir);
     const goodDir = path.join(tmpDir, 'profiles', 'good', 'cron');
     fs.mkdirSync(goodDir, { recursive: true });
-    fs.writeFileSync(path.join(goodDir, 'jobs.custom.json'), JSON.stringify({ jobs: [{ id: '1' }] }) + '\n');
+    fs.writeFileSync(
+      path.join(goodDir, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n',
+    );
 
     const r = runCli(['jobs-merge'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged jobs for all profiles'), r.stdout);
   });
 
@@ -311,7 +380,11 @@ describe('CLI exit status reflects per-profile merge failures', () => {
     fs.writeFileSync(path.join(goodDir, 'SOUL.custom.md'), '# good custom soul\n');
 
     const r = runCli(['soul-merge'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged SOUL for all profiles'), r.stdout);
   });
 });
@@ -352,16 +425,32 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     fs.writeFileSync(path.join(dir, 'config.custom.yaml'), `model: "${name}"\n`);
   }
 
-  function assertLinkFailureRun(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
+  function assertLinkFailureRun(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string,
+  ): void {
     const shown = r.stdout + r.stderr;
     // Non-zero exit ...
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // ... no success banner ...
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
     // ... no raw stack trace (the whole point of the fix) ...
-    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.ok(
+      !/at [^\n]+\(/.test(r.stderr),
+      `${label}: stderr must not contain a stack trace:\n${r.stderr}`,
+    );
     // ... and a readable, one-line link error on stderr ...
-    assert.ok(shown.toLowerCase().includes('link'), `${label}: failure must mention the link failure:\n${shown}`);
+    assert.ok(
+      shown.toLowerCase().includes('link'),
+      `${label}: failure must mention the link failure:\n${shown}`,
+    );
     assert.ok(r.stderr.includes('Failed:'), `${label}: failure summary missing:\n${r.stderr}`);
   }
 
@@ -439,7 +528,11 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
 
     const r = runCli(['sync'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `success banner must not print:\n${r.stdout}`);
     // The pre-computed merge result is still reported (the bug this fixes).
     assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
@@ -459,7 +552,11 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
 
     const r = runCli(['all'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), r.stdout);
     // Merge succeeded (only skipped) but the link failures still force a
     // non-zero exit with a clear message.
@@ -477,7 +574,11 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'plugins'), { recursive: true, force: true });
 
     const r = runCli(['merge-all'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), r.stdout);
     assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
     assert.match(r.stderr, /Common skills directory not found/);
@@ -488,7 +589,11 @@ describe('CLI link-failure paths (missing link source directory)', () => {
     scaffoldWorkspace(tmpDir);
     makeLinkableProfile('good');
     const r = runCli(['sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
   });
 });
@@ -512,10 +617,23 @@ describe('CLI init exit status reflects initial-sync failures', () => {
   });
 
   /** Shared failure assertions: non-zero exit, no banner, readable stderr. */
-  function assertFailingInit(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
-    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+  function assertFailingInit(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string,
+  ): void {
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
+    assert.ok(
+      !/at [^\n]+\(/.test(r.stderr),
+      `${label}: stderr must not contain a stack trace:\n${r.stderr}`,
+    );
     assert.match(r.stderr, /Failed:/);
   }
 
@@ -526,7 +644,7 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     scaffoldWorkspace(tmpDir);
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      `- just\n- a\n- list\n`
+      `- just\n- a\n- list\n`,
     );
 
     const r = runCli(['init'], { cwd: tmpDir });
@@ -538,7 +656,7 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     // repairing it and claiming success.
     assert.match(
       fs.readFileSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), 'utf8'),
-      /- just/
+      /- just/,
     );
   });
 
@@ -546,7 +664,7 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     scaffoldWorkspace(tmpDir);
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      `- just\n- a\n- list\n`
+      `- just\n- a\n- list\n`,
     );
 
     const r = runCli(['init'], { cwd: tmpDir, quiet: true });
@@ -568,14 +686,18 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     const shown = r.stdout + r.stderr;
     assert.ok(
       shown.includes('bad') && shown.toLowerCase().includes('error'),
-      `init: failure output must name the failing profile:\n${shown}`
+      `init: failure output must name the failing profile:\n${shown}`,
     );
     assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
   });
 
   it('init exits 0 with the success banner and compiled outputs on a clean workspace', () => {
     const r = runCli(['init'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
     assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'config.yaml')));
     assert.ok(fs.existsSync(path.join(tmpDir, 'profiles', 'main', 'SOUL.md')));
@@ -588,11 +710,15 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     scaffoldWorkspace(tmpDir);
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      `- just\n- a\n- list\n`
+      `- just\n- a\n- list\n`,
     );
 
     const r = runCli(['init', '--no-sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
   });
 
@@ -615,7 +741,11 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     assert.ok(!fs.existsSync(escapeDir), 'precondition: shared escape target must not exist yet');
 
     const r = runCli(['init', '--profile', '../../pwned'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // No success banner...
     assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
     // ...no raw stack trace...
@@ -624,14 +754,53 @@ describe('CLI init exit status reflects initial-sync failures', () => {
     assert.match(r.stderr, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
     assert.match(r.stderr, /Failed: invalid profile name/);
     // ...and NOTHING was written outside the workspace.
-    assert.ok(
-      !fs.existsSync(escapeDir),
-      `no files may escape the workspace (found: ${escapeDir})`
-    );
+    assert.ok(!fs.existsSync(escapeDir), `no files may escape the workspace (found: ${escapeDir})`);
     assert.ok(
       !fs.existsSync(path.join(tmpDir, 'profiles')),
-      'the rejected init must not create the workspace profiles/ tree'
+      'the rejected init must not create the workspace profiles/ tree',
     );
+  });
+
+  it('init on a profiles/common file collision exits 1 with the REAL filesystem error, NOT "invalid profile name"', () => {
+    // Regression: with profiles/common a regular file, non-dry-run init used
+    // to throw a raw EEXIST from mkdir, and the CLI's init catch block
+    // hard-coded "Failed: invalid profile name." for EVERY throw — telling a
+    // user with a filesystem collision to fix their profile name. The real
+    // errno (with the offending path) must be surfaced, with a generic
+    // initialization-failure summary instead of the name guidance.
+    fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'profiles', 'common'), 'not a directory\n');
+
+    const r = runCli(['init'], { cwd: tmpDir });
+    assertFailingInit(r, 'init fs-collision');
+    // The offending path is named...
+    assert.match(r.stderr, /profiles\/common/);
+    // ...together with the filesystem errno...
+    assert.match(r.stderr, /EEXIST/);
+    // ...and the summary must NOT be the profile-name guidance.
+    assert.ok(
+      !/Failed: invalid profile name/i.test(r.stderr),
+      `a filesystem collision must not be misreported as an invalid profile name:\n${r.stderr}`,
+    );
+    assert.match(r.stderr, /Failed: initialization failed/);
+  });
+
+  it('init on a scaffolding-file-as-directory collision exits 1 with the real errno (EISDIR) and no name guidance', () => {
+    // A directory where a scaffolding file belongs used to be silently
+    // counted as "skipped (already existed)" or, on --force, a raw EISDIR
+    // labeled "invalid profile name". It must surface as a filesystem error
+    // naming the file.
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'config.yaml'), { recursive: true });
+
+    const r = runCli(['init', '--force'], { cwd: tmpDir });
+    assertFailingInit(r, 'init fs-eisdir');
+    assert.match(r.stderr, /profiles\/common\/config\.yaml/);
+    assert.match(r.stderr, /EISDIR/);
+    assert.ok(
+      !/Failed: invalid profile name/i.test(r.stderr),
+      `a directory collision must not be misreported as an invalid profile name:\n${r.stderr}`,
+    );
+    assert.match(r.stderr, /Failed: initialization failed/);
   });
 });
 
@@ -656,15 +825,28 @@ describe('CLI sync/all/merge-all exit status reflects top-level sync failures', 
     scaffoldWorkspace(tmpDir);
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      `- just\n- a\n- list\n`
+      `- just\n- a\n- list\n`,
     );
   }
 
   /** Shared failure assertions: exit 1, no banner, readable top-level error. */
-  function assertFailingTopLevelRun(r: { status: number | null; stdout: string; stderr: string }, label: string): void {
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
-    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+  function assertFailingTopLevelRun(
+    r: { status: number | null; stdout: string; stderr: string },
+    label: string,
+  ): void {
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
+    assert.ok(
+      !/at [^\n]+\(/.test(r.stderr),
+      `${label}: stderr must not contain a stack trace:\n${r.stderr}`,
+    );
     assert.match(r.stderr, /the sync run failed/);
     assert.match(r.stderr, /Common config must be a YAML object/);
   }
@@ -690,7 +872,11 @@ describe('CLI sync/all/merge-all exit status reflects top-level sync failures', 
   it('sync -q still exits 1 and writes the top-level failure to stderr (banner suppressed)', () => {
     scaffoldBrokenTopLevelWorkspace();
     const r = runCli(['sync'], { cwd: tmpDir, quiet: true });
-    assert.equal(r.status, 1, `sync -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `sync -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.equal(r.stdout, '', 'sync -q prints nothing on stdout');
     assert.match(r.stderr, /the sync run failed/);
     assert.match(r.stderr, /Common config must be a YAML object/);
@@ -699,8 +885,85 @@ describe('CLI sync/all/merge-all exit status reflects top-level sync failures', 
   it('sync exits 0 with the success banner when the workspace is genuinely valid (regression guard)', () => {
     scaffoldWorkspace(tmpDir);
     const r = runCli(['sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Synced all Hermes profiles successfully'), r.stdout);
+  });
+
+  it('sync reports EVERY failing step and per-profile failure in one pass (step isolation)', () => {
+    // Regression target: before the step-isolation fix the FIRST top-level
+    // failure (the soul step here, since config is valid) aborted the rest
+    // of the merge aggregate, so the per-profile errors below were
+    // invisible. Now the run surfaces them all: the soul step error, the
+    // per-profile config error, and the per-profile jobs error.
+    scaffoldWorkspace(tmpDir);
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
+    fs.mkdirSync(path.join(badDir, 'cron'), { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'cron', 'jobs.custom.json'), '{ not valid json');
+
+    const r = runCli(['sync'], { cwd: tmpDir });
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // The top-level soul-step failure...
+    assert.match(r.stderr, /Common SOUL file not found/);
+    // ...AND the per-profile failures the aborted steps used to suppress...
+    assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
+    assert.match(r.stderr, /bad: Jobs custom file is not valid JSON/);
+    // ...with a Failed: summary counting all of them.
+    assert.match(r.stderr, /Failed: the sync run failed and 2 profile\(s\) had merge errors/);
+  });
+
+  it('merge all reports EVERY failing top-level step in one pass (step isolation)', () => {
+    // Broken common config (a YAML list) + a missing common SOUL.md + a
+    // VALID worker cron custom source. Regression target: before the
+    // step-isolation fix the FIRST top-level failure (the config step)
+    // aborted mergeAll, so the soul step never ran (its failure was
+    // invisible) and the valid worker jobs merge was never performed. Now
+    // both failing steps are reported AND the jobs step still merged its
+    // output.
+    scaffoldWorkspace(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
+      `- just\n- a\n- list\n`,
+    );
+    fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
+    const workerCron = path.join(tmpDir, 'profiles', 'worker', 'cron');
+    fs.mkdirSync(workerCron, { recursive: true });
+    fs.writeFileSync(
+      path.join(workerCron, 'jobs.custom.json'),
+      JSON.stringify({ jobs: [{ id: '1', name: 'ok_job' }] }) + '\n',
+    );
+
+    const r = runCli(['merge', 'all'], { cwd: tmpDir });
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(!r.stdout.includes('✓'), `no success banner on failure:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // BOTH failing top-level steps are reported (one line each)...
+    assert.match(r.stderr, /Common config must be a YAML object/);
+    assert.match(r.stderr, /Common SOUL file not found/);
+    // ...with a Failed: summary counting both steps.
+    assert.match(r.stderr, /Failed: 2 merge steps failed/);
+    // ...and the jobs step STILL RAN despite the config step failing first:
+    // the worker jobs output was actually written.
+    assert.ok(
+      fs.existsSync(path.join(workerCron, 'jobs.json')),
+      'the jobs step must still merge its output even when the config step fails top-level',
+    );
   });
 });
 
@@ -726,7 +989,7 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.writeFileSync(
       path.join(tmpDir, 'profiles', 'common', 'config.yaml'),
-      `- just\n- a\n- list\n`
+      `- just\n- a\n- list\n`,
     );
   }
 
@@ -737,11 +1000,21 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
    */
   function assertFailingTopLevelMergeRun(
     r: { status: number | null; stdout: string; stderr: string },
-    label: string
+    label: string,
   ): void {
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
-    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
+    assert.ok(
+      !/at [^\n]+\(/.test(r.stderr),
+      `${label}: stderr must not contain a stack trace:\n${r.stderr}`,
+    );
     assert.match(r.stderr, /Common config must be a YAML object/);
     assert.match(r.stderr, /Failed: the merge run failed/);
   }
@@ -769,10 +1042,75 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
   it('merge config -q still exits 1 and writes the top-level failure to stderr (banner suppressed)', () => {
     scaffoldBrokenTopLevelWorkspace();
     const r = runCli(['merge', 'config'], { cwd: tmpDir, quiet: true });
-    assert.equal(r.status, 1, `merge config -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `merge config -q: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.equal(r.stdout, '', 'merge config -q prints nothing on stdout');
     assert.match(r.stderr, /Common config must be a YAML object/);
     assert.match(r.stderr, /Failed: the merge run failed/);
+  });
+
+  it('merge config exits 1 with a ONE-LINE, path-named error when the COMMON config fails to parse', () => {
+    // REGRESSION (top-level parse leak): a malformed profiles/common/config.yaml
+    // used to surface the raw multi-line YAMLParseError (source snippet +
+    // caret) with no file name — the user could not tell WHICH file or even
+    // which operation failed. finishMerge prints the one-line message.
+    scaffoldWorkspace(tmpDir);
+    const commonPath = path.join(tmpDir, 'profiles', 'common', 'config.yaml');
+    fs.writeFileSync(commonPath, `model: [unclosed\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    // The ✗ line is ONE line and names the common config path.
+    const esc = (p: string): string => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const errLine = r.stderr.split('\n').find((l) => l.includes('Common config is not valid YAML'));
+    assert.ok(errLine, `one-line parse error missing from stderr:\n${r.stderr}`);
+    assert.match(
+      errLine,
+      new RegExp(`\\u2717 Common config is not valid YAML: ${esc(commonPath)}`),
+    );
+    assert.match(r.stderr, /Failed: the merge run failed/);
+    // No raw source snippet or caret leaked into the report.
+    assert.ok(!r.stderr.includes('model: [unclosed'), `no raw source snippet:\n${r.stderr}`);
+    assert.ok(!/^\^$/m.test(r.stderr), `no raw caret line:\n${r.stderr}`);
+  });
+
+  it('merge config exits 1 with a ONE-LINE, path-named error when a custom config fails to parse', () => {
+    // REGRESSION (per-profile parse leak): a malformed config.custom.yaml
+    // used to surface the raw multi-line YAMLParseError as the `✗ bad:`
+    // entry — no file name, 5+ lines mangled into the report. The error
+    // entry is now a single line naming the file.
+    scaffoldWorkspace(tmpDir);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    const customPath = path.join(badDir, 'config.custom.yaml');
+    fs.writeFileSync(customPath, `model: [unclosed\n`);
+
+    const r = runCli(['merge', 'config'], { cwd: tmpDir });
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
+    assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
+    assert.match(r.stderr, /bad: Custom config is not valid YAML/);
+    // The ✗ line is ONE line and names the custom config file.
+    const errLine = r.stderr.split('\n').find((l) => l.startsWith('\u2717 bad:'));
+    assert.ok(errLine, `✗ bad: line missing from stderr:\n${r.stderr}`);
+    assert.ok(errLine.includes(customPath), `✗ line must name the file:\n${errLine}`);
+    assert.match(r.stderr, /Failed: 1 profile\(s\) had merge errors/);
+    // No raw source snippet or caret leaked into the report.
+    assert.ok(!r.stderr.includes('model: [unclosed'), `no raw source snippet:\n${r.stderr}`);
+    assert.ok(!/^\^$/m.test(r.stderr), `no raw caret line:\n${r.stderr}`);
   });
 
   it('merge config exits 0 with the banner when the workspace is genuinely valid (regression guard)', () => {
@@ -782,7 +1120,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
 
     const r = runCli(['merge', 'config'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
     assert.equal(r.stderr, '', 'clean merge config prints nothing on stderr');
   });
@@ -791,7 +1133,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
     const r = runCli(['merge', 'soul'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
     assert.match(r.stderr, /Common SOUL file not found/);
@@ -802,7 +1148,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.rmSync(path.join(tmpDir, 'profiles', 'common', 'SOUL.md'), { force: true });
     const r = runCli(['soul-merge'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
     assert.match(r.stderr, /Common SOUL file not found/);
@@ -816,7 +1166,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     // mergeConfig throws, so the sub-commands no longer diverge.
     scaffoldWorkspace(tmpDir);
     const r = runCli(['merge', 'jobs'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
     assert.match(r.stderr, /No profiles found under/);
@@ -826,7 +1180,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
   it('jobs-merge alias exits 1 cleanly when there are no profiles (top-level precondition)', () => {
     scaffoldWorkspace(tmpDir);
     const r = runCli(['jobs-merge'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no banner:\n${r.stdout}`);
     assert.ok(!/at [^\n]+\(/.test(r.stderr), `no stack trace:\n${r.stderr}`);
     assert.match(r.stderr, /No profiles found under/);
@@ -846,7 +1204,11 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
     const r = runCli(['merge', 'config', '-p', 'real'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
     assert.equal(r.stderr, '', 'clean -p merge config prints nothing on stderr');
   });
@@ -861,9 +1223,16 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
     const r = runCli(['merge', 'jobs', '-p', 'real'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged jobs for all profiles'), r.stdout);
-    assert.ok(!/no profiles with cron\/jobs\.custom\.json found/.test(r.stderr), `no top-level failure:\n${r.stderr}`);
+    assert.ok(
+      !/no profiles with cron\/jobs\.custom\.json found/.test(r.stderr),
+      `no top-level failure:\n${r.stderr}`,
+    );
     assert.equal(r.stderr, '', 'clean -p merge jobs prints nothing on stderr');
   });
 
@@ -872,9 +1241,16 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     scaffoldWorkspace(tmpDir);
     fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
     const r = runCli(['merge', 'soul', '-p', 'real'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged SOUL for all profiles'), r.stdout);
-    assert.ok(!/no profiles with SOUL\.custom\.md found/.test(r.stderr), `no top-level failure:\n${r.stderr}`);
+    assert.ok(
+      !/no profiles with SOUL\.custom\.md found/.test(r.stderr),
+      `no top-level failure:\n${r.stderr}`,
+    );
     assert.equal(r.stderr, '', 'clean -p merge soul prints nothing on stderr');
   });
 
@@ -886,12 +1262,20 @@ describe('CLI standalone merge family handles top-level merge preconditions clea
     fs.mkdirSync(path.join(tmpDir, 'profiles', 'real'), { recursive: true });
 
     const rJobs = runCli(['jobs-merge', '-p', 'real'], { cwd: tmpDir });
-    assert.equal(rJobs.status, 0, `jobs-merge -p expected exit 0, got ${rJobs.status}\nstdout: ${rJobs.stdout}\nstderr: ${rJobs.stderr}`);
+    assert.equal(
+      rJobs.status,
+      0,
+      `jobs-merge -p expected exit 0, got ${rJobs.status}\nstdout: ${rJobs.stdout}\nstderr: ${rJobs.stderr}`,
+    );
     assert.ok(rJobs.stdout.includes('✓ Merged jobs for all profiles'), rJobs.stdout);
     assert.equal(rJobs.stderr, '', 'clean -p jobs-merge prints nothing on stderr');
 
     const rSoul = runCli(['soul-merge', '-p', 'real'], { cwd: tmpDir });
-    assert.equal(rSoul.status, 0, `soul-merge -p expected exit 0, got ${rSoul.status}\nstdout: ${rSoul.stdout}\nstderr: ${rSoul.stderr}`);
+    assert.equal(
+      rSoul.status,
+      0,
+      `soul-merge -p expected exit 0, got ${rSoul.status}\nstdout: ${rSoul.stdout}\nstderr: ${rSoul.stderr}`,
+    );
     assert.ok(rSoul.stdout.includes('✓ Merged SOUL for all profiles'), rSoul.stdout);
     assert.equal(rSoul.stderr, '', 'clean -p soul-merge prints nothing on stderr');
   });
@@ -956,19 +1340,39 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     fs.writeFileSync(path.join(goodDir, 'SOUL.custom.md'), '# good custom soul\n');
 
     const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // Honest preview wording: the dry-run banner is prefixed "Would ", and no
     // merge line claims a file was written.
     assert.ok(r.stdout.includes('✓ Would Synced all Hermes profiles successfully'), r.stdout);
-    assert.ok(!r.stdout.includes('written to'), `dry-run stdout must not claim files were written:\n${r.stdout}`);
-    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
-    assert.ok(!fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'dry-run must not write jobs.json');
+    assert.ok(
+      !r.stdout.includes('written to'),
+      `dry-run stdout must not claim files were written:\n${r.stdout}`,
+    );
+    assert.ok(
+      !fs.existsSync(path.join(goodDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')),
+      'dry-run must not write jobs.json',
+    );
     assert.ok(!fs.existsSync(path.join(goodDir, 'SOUL.md')), 'dry-run must not write SOUL.md');
     // No symlinks were created (skills/plugins sources are empty no-ops, so
     // this also proves the link step itself produced no side effects).
-    assert.deepEqual(collectSymlinks(path.join(tmpDir, 'profiles')), [], 'no symlinks under profiles/');
+    assert.deepEqual(
+      collectSymlinks(path.join(tmpDir, 'profiles')),
+      [],
+      'no symlinks under profiles/',
+    );
     // $HERMES_HOME (pinned to <cwd>/fake-hermes by runCli) was not touched.
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'fake-hermes')), 'dry-run must not create symlinks in HERMES_HOME');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'fake-hermes')),
+      'dry-run must not create symlinks in HERMES_HOME',
+    );
   });
 
   it('sync --dry-run -q exits 0 and prints nothing on stdout', () => {
@@ -980,7 +1384,10 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir, quiet: true });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstderr: ${r.stderr}`);
     assert.equal(r.stdout, '', 'quiet dry-run prints nothing on stdout');
-    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(
+      !fs.existsSync(path.join(goodDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
   });
 
   it('merge config --dry-run reports merged (exit 0) but leaves config.yaml absent', () => {
@@ -990,13 +1397,26 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     fs.writeFileSync(path.join(goodDir, 'config.custom.yaml'), `model: "good"\n`);
 
     const r = runCli(['--dry-run', 'merge', 'config'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // Honest preview wording: the dry-run banner is prefixed "Would " and the
     // merge line phrases the write as a preview, not a completed action.
     assert.ok(r.stdout.includes('✓ Would Merged config for all profiles'), r.stdout);
-    assert.ok(!r.stdout.includes('written to'), `dry-run stdout must not claim files were written:\n${r.stdout}`);
-    assert.ok(r.stdout.includes('Would merge config to:'), `dry-run merge line should be preview-worded:\n${r.stdout}`);
-    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(
+      !r.stdout.includes('written to'),
+      `dry-run stdout must not claim files were written:\n${r.stdout}`,
+    );
+    assert.ok(
+      r.stdout.includes('Would merge config to:'),
+      `dry-run merge line should be preview-worded:\n${r.stdout}`,
+    );
+    assert.ok(
+      !fs.existsSync(path.join(goodDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
   });
 
   it('link --dry-run (default all) creates no symlink yet exits 0 with the banner', () => {
@@ -1004,11 +1424,19 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     // Real common skill + plugin sources, so a live run WOULD create links.
     const goodDir = path.join(tmpDir, 'profiles', 'good');
     fs.mkdirSync(goodDir, { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), {
+      recursive: true,
+    });
 
     const r = runCli(['--dry-run', 'link'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // Honest preview wording: the dry-run banner is prefixed "Would ", and no
     // line claims a link was created.
     assert.ok(r.stdout.includes('✓ Would Linked skills and plugins for all profiles'), r.stdout);
@@ -1016,14 +1444,24 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     // line mentioning "Linked", and every other line phrases the link as a
     // preview ("Would link ..."), never a completed action.
     const nonBannerLines = r.stdout.split('\n').filter((l) => l.trim() !== '' && !l.includes('✓'));
-    assert.ok(!nonBannerLines.some((l) => l.includes('Linked ')), `no "Linked" claim in per-item lines:\n${r.stdout}`);
-    assert.ok(nonBannerLines.every((l) => l.startsWith('Would link ')), `dry-run link lines should be preview-worded:\n${r.stdout}`);
+    assert.ok(
+      !nonBannerLines.some((l) => l.includes('Linked ')),
+      `no "Linked" claim in per-item lines:\n${r.stdout}`,
+    );
+    assert.ok(
+      nonBannerLines.every((l) => l.startsWith('Would link ')),
+      `dry-run link lines should be preview-worded:\n${r.stdout}`,
+    );
     // No symlinks anywhere under profiles/ ...
-    assert.deepEqual(collectSymlinks(path.join(tmpDir, 'profiles')), [], 'no symlinks under profiles/');
+    assert.deepEqual(
+      collectSymlinks(path.join(tmpDir, 'profiles')),
+      [],
+      'no symlinks under profiles/',
+    );
     // ... and none in $HERMES_HOME/plugins either.
     assert.ok(
       !fs.existsSync(path.join(tmpDir, 'fake-hermes', 'plugins')),
-      'dry-run must not create symlinks in HERMES_HOME/plugins'
+      'dry-run must not create symlinks in HERMES_HOME/plugins',
     );
   });
 
@@ -1038,13 +1476,23 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     fs.writeFileSync(path.join(badDir, 'config.custom.yaml'), `just-a-scalar\n`);
 
     const r = runCli(['--dry-run', 'sync'], { cwd: tmpDir });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `success banner must not print on failure:\n${r.stdout}`);
     assert.match(r.stderr, /bad: Custom config is not a valid YAML object/);
     assert.match(r.stderr, /Failed: 1 profile\(s\) had merge errors/);
     // The run only skipped the writes: nothing was mutated.
-    assert.ok(!fs.existsSync(path.join(goodDir, 'config.yaml')), 'dry-run must not write config.yaml');
-    assert.ok(!fs.existsSync(path.join(badDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(
+      !fs.existsSync(path.join(goodDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(badDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
   });
 
   it('(guard) a non-dry sync on the same workspace DOES write the outputs', () => {
@@ -1058,13 +1506,20 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     fs.mkdirSync(path.join(goodDir, 'cron'), { recursive: true });
     fs.writeFileSync(
       path.join(goodDir, 'cron', 'jobs.custom.json'),
-      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n'
+      JSON.stringify({ jobs: [{ id: '1' }] }) + '\n',
     );
 
     const r = runCli(['sync'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(fs.existsSync(path.join(goodDir, 'config.yaml')), 'real sync must write config.yaml');
-    assert.ok(fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')), 'real sync must write jobs.json');
+    assert.ok(
+      fs.existsSync(path.join(goodDir, 'cron', 'jobs.json')),
+      'real sync must write jobs.json',
+    );
     assert.ok(fs.existsSync(path.join(goodDir, 'SOUL.md')), 'real sync must write SOUL.md');
   });
 
@@ -1073,42 +1528,49 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     fs.mkdirSync(targetDir, { recursive: true });
 
     const r = runCli(['--dry-run', 'init', targetDir], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // The banner is a preview under --dry-run: it must NOT assert the
     // workspace was initialized or the profile was created.
     assert.ok(
       r.stdout.includes('✓ Would initialize Hermes profiles in'),
-      `dry-run preview banner missing:\n${r.stdout}`
+      `dry-run preview banner missing:\n${r.stdout}`,
     );
     assert.ok(
       !r.stdout.includes('Successfully initialized Hermes profiles in'),
-      `dry-run banner must not claim the workspace was initialized:\n${r.stdout}`
+      `dry-run banner must not claim the workspace was initialized:\n${r.stdout}`,
     );
     assert.ok(
       r.stdout.includes('Profile to create:'),
-      `dry-run banner must preview the profile as "to create":\n${r.stdout}`
+      `dry-run banner must preview the profile as "to create":\n${r.stdout}`,
     );
     assert.ok(
       !r.stdout.includes('Profile created:'),
-      `dry-run banner must not claim the profile was created:\n${r.stdout}`
+      `dry-run banner must not claim the profile was created:\n${r.stdout}`,
     );
     // The banner phrases the count as a preview (nothing was written).
     assert.ok(
       r.stdout.includes('Files to create: 5'),
-      `dry-run banner must report "Files to create":\n${r.stdout}`
+      `dry-run banner must report "Files to create":\n${r.stdout}`,
     );
     assert.ok(
       !r.stdout.includes('Files created:'),
-      `dry-run banner must not claim files were created:\n${r.stdout}`
+      `dry-run banner must not claim files were created:\n${r.stdout}`,
     );
     // Nothing at all was written: no profiles/ tree, no common sources, no
     // per-profile custom sources, no compiled sync outputs, no symlinks.
     assert.ok(
       !fs.existsSync(path.join(targetDir, 'profiles')),
-      'dry-run init must not create the profiles/ tree at all'
+      'dry-run init must not create the profiles/ tree at all',
     );
     // $HERMES_HOME (pinned to <cwd>/fake-hermes by runCli) was not touched.
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'fake-hermes')), 'dry-run init must not touch HERMES_HOME');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'fake-hermes')),
+      'dry-run init must not touch HERMES_HOME',
+    );
   });
 
   it('init --dry-run -q exits 0 and prints nothing on stdout', () => {
@@ -1120,7 +1582,7 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     assert.equal(r.stdout, '', 'quiet dry-run prints nothing on stdout');
     assert.ok(
       !fs.existsSync(path.join(targetDir, 'profiles')),
-      'quiet dry-run init must not create the profiles/ tree'
+      'quiet dry-run init must not create the profiles/ tree',
     );
   });
 
@@ -1136,24 +1598,58 @@ describe('CLI --dry-run reports results without writing to disk', () => {
     // (commander routes it to the parent), a pre-existing CLI quirk
     // unrelated to this test's contract.
     const r = runCli(['init', targetDir, '--profile', 'agent-1'], { cwd: tmpDir });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     // A real init reports the files it actually wrote.
     assert.ok(r.stdout.includes('Files created: 5'), r.stdout);
     assert.ok(!r.stdout.includes('Files to create:'), r.stdout);
     // Common sources
-    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'config.yaml')), 'real init must write common config.yaml');
-    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'SOUL.md')), 'real init must write common SOUL.md');
-    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'skills')), 'real init must create skills dir');
-    assert.ok(fs.existsSync(path.join(targetDir, 'profiles', 'common', 'plugins')), 'real init must create plugins dir');
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'profiles', 'common', 'config.yaml')),
+      'real init must write common config.yaml',
+    );
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'profiles', 'common', 'SOUL.md')),
+      'real init must write common SOUL.md',
+    );
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'profiles', 'common', 'skills')),
+      'real init must create skills dir',
+    );
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'profiles', 'common', 'plugins')),
+      'real init must create plugins dir',
+    );
     // Per-profile custom sources
     const agentDir = path.join(targetDir, 'profiles', 'agent-1');
-    assert.ok(fs.existsSync(path.join(agentDir, 'config.custom.yaml')), 'real init must write config.custom.yaml');
-    assert.ok(fs.existsSync(path.join(agentDir, 'SOUL.custom.md')), 'real init must write SOUL.custom.md');
-    assert.ok(fs.existsSync(path.join(agentDir, 'cron', 'jobs.custom.json')), 'real init must write jobs.custom.json');
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'config.custom.yaml')),
+      'real init must write config.custom.yaml',
+    );
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'SOUL.custom.md')),
+      'real init must write SOUL.custom.md',
+    );
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'cron', 'jobs.custom.json')),
+      'real init must write jobs.custom.json',
+    );
     // Compiled outputs from the real initial sync
-    assert.ok(fs.existsSync(path.join(agentDir, 'config.yaml')), 'real initial sync must write config.yaml');
-    assert.ok(fs.existsSync(path.join(agentDir, 'SOUL.md')), 'real initial sync must write SOUL.md');
-    assert.ok(fs.existsSync(path.join(agentDir, 'cron', 'jobs.json')), 'real initial sync must write jobs.json');
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'config.yaml')),
+      'real initial sync must write config.yaml',
+    );
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'SOUL.md')),
+      'real initial sync must write SOUL.md',
+    );
+    assert.ok(
+      fs.existsSync(path.join(agentDir, 'cron', 'jobs.json')),
+      'real initial sync must write jobs.json',
+    );
   });
 });
 
@@ -1178,12 +1674,22 @@ describe('CLI --profiles with a path-traversal name: merge/link reject before an
   function assertRejectedRun(
     r: { status: number | null; stdout: string; stderr: string },
     label: string,
-    failedRegex: RegExp
+    failedRegex: RegExp,
   ): void {
     const escapeDir = path.join(path.dirname(tmpDir), 'pwned');
-    assert.equal(r.status, 1, `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    assert.ok(!r.stdout.includes('✓'), `${label}: success banner must not print on failure:\n${r.stdout}`);
-    assert.ok(!/at [^\n]+\(/.test(r.stderr), `${label}: stderr must not contain a stack trace:\n${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `${label}: expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
+    assert.ok(
+      !r.stdout.includes('✓'),
+      `${label}: success banner must not print on failure:\n${r.stdout}`,
+    );
+    assert.ok(
+      !/at [^\n]+\(/.test(r.stderr),
+      `${label}: stderr must not contain a stack trace:\n${r.stderr}`,
+    );
     assert.match(r.stderr, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
     assert.match(r.stderr, failedRegex);
     // NOTHING was written/linked outside the workspace.
@@ -1218,22 +1724,30 @@ describe('CLI --profiles with a path-traversal name: merge/link reject before an
     // <tmpdir>/pwned/skills and <tmpdir>/pwned/plugins (and in the fake
     // HERMES_HOME) from the attacker-chosen location.
     scaffoldWorkspace(tmpDir);
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), {
+      recursive: true,
+    });
     const r = runCli(['link', '--profiles', '../../pwned'], { cwd: tmpDir });
     assertRejectedRun(r, 'link', /Failed: \d+ link step(?:s)? failed/);
   });
 
   it('link skills --profiles ../../pwned exits 1 with a clean error and creates no symlinks', () => {
     scaffoldWorkspace(tmpDir);
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'skills', 'demo-skill'), {
+      recursive: true,
+    });
     const r = runCli(['link', 'skills', '--profiles', '../../pwned'], { cwd: tmpDir });
     assertRejectedRun(r, 'link skills', /Failed: 1 link step failed/);
   });
 
   it('link plugins --profiles ../../pwned exits 1 with a clean error and creates no symlinks', () => {
     scaffoldWorkspace(tmpDir);
-    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'profiles', 'common', 'plugins', 'demo-plugin'), {
+      recursive: true,
+    });
     const r = runCli(['link', 'plugins', '--profiles', '../../pwned'], { cwd: tmpDir });
     assertRejectedRun(r, 'link plugins', /Failed: 1 link step failed/);
   });
@@ -1241,8 +1755,8 @@ describe('CLI --profiles with a path-traversal name: merge/link reject before an
 
 describe('CLI -r/--root: an explicit root is authoritative; auto-detect only when absent', () => {
   let tmpDir: string;
-  let outer: string;  // ancestor workspace carrying the profiles/common marker
-  let inner: string;  // explicit --root target: has profiles/ but NO profiles/common
+  let outer: string; // ancestor workspace carrying the profiles/common marker
+  let inner: string; // explicit --root target: has profiles/ but NO profiles/common
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-cli-rootflag-'));
@@ -1275,27 +1789,48 @@ describe('CLI -r/--root: an explicit root is authoritative; auto-detect only whe
     // the run must fail naming the INNER root — proof it did NOT redirect
     // to the ancestor.
     const r = runCli(['merge', 'config', '--root', inner], { cwd: outer });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
-    assert.match(r.stderr, new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`));
+    assert.match(
+      r.stderr,
+      new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`),
+    );
     // The ancestor workspace must be untouched.
     assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
   });
 
   it('link skills --root <dir-without-marker> names the EXPLICIT root in its failure, not the ancestor', () => {
     const r = runCli(['link', 'skills', '--root', inner], { cwd: outer });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
-    assert.match(r.stderr, new RegExp(`Common skills directory not found: ${esc(inner)}\\/profiles\\/common\\/skills`));
+    assert.match(
+      r.stderr,
+      new RegExp(`Common skills directory not found: ${esc(inner)}\\/profiles\\/common\\/skills`),
+    );
     assert.ok(!fs.existsSync(path.join(inner, 'profiles', 'inner-prof', 'skills')));
     assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'skills')));
   });
 
   it('sync --root <dir-without-marker> fails against the EXPLICIT root and leaves the ancestor workspace untouched', () => {
     const r = runCli(['sync', '--root', inner], { cwd: outer });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      1,
+      `expected exit 1, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(!r.stdout.includes('✓'), `no success banner:\n${r.stdout}`);
-    assert.match(r.stderr, new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`));
+    assert.match(
+      r.stderr,
+      new RegExp(`Common config not found: ${esc(inner)}\\/profiles\\/common\\/config\\.yaml`),
+    );
     assert.match(r.stderr, /Failed: the sync run failed/);
     // The ancestor workspace must not have been merged or linked.
     assert.ok(!fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
@@ -1317,7 +1852,11 @@ describe('CLI -r/--root: an explicit root is authoritative; auto-detect only whe
     fs.writeFileSync(path.join(inner2Prof, 'config.custom.yaml'), `model: "inner2-value"\n`);
 
     const r = runCli(['merge', 'config', '--root', 'inner2'], { cwd: outer });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
     // The explicit (nested) workspace was merged ...
     const merged = fs.readFileSync(path.join(inner2Prof, 'config.yaml'), 'utf8');
@@ -1334,7 +1873,11 @@ describe('CLI -r/--root: an explicit root is authoritative; auto-detect only whe
     fs.mkdirSync(brandNew, { recursive: true });
 
     const r = runCli(['init', brandNew, '--root', outer], { cwd: outer });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Successfully initialized Hermes profiles'), r.stdout);
     // Scaffolding + compiled outputs landed in the explicit targetDir ...
     assert.ok(fs.existsSync(path.join(brandNew, 'profiles', 'common', 'config.yaml')));
@@ -1350,7 +1893,11 @@ describe('CLI -r/--root: an explicit root is authoritative; auto-detect only whe
     fs.mkdirSync(sub, { recursive: true });
 
     const r = runCli(['merge', 'config'], { cwd: sub });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    assert.equal(
+      r.status,
+      0,
+      `expected exit 0, got ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+    );
     assert.ok(r.stdout.includes('✓ Merged config for all profiles'), r.stdout);
     assert.ok(fs.existsSync(path.join(outer, 'profiles', 'outer-prof', 'config.yaml')));
   });

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b15d8dccb4806cf41975540b5cc95a15b2d356997412daef4a48477fa1942d5b",
+  "claims": [
+    {
+      "id": "claim_7bfa50a72bbf406eb1a1203cee0b3c1a",
+      "statement": "linkSkills creates a RELATIVE symlink (../../common/skills/<skill>) for each non-hidden subdirectory of profiles/common/skills into every target profile's skills/ directory; relative targets keep profiles portable across machines and paths.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L28-L46",
+          "version": "repo-lines-v1:sha256:d90e3d990e7942c3181115f510052e004f21da7a352ab7cb06cf47ee789018d9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwZGFmMTU1MDFhZmM5YzBlN2ExODY2MTYyMmQwZjU1MzE1MWQ1ODVmODg5NzUxYmZkYzkyODI0ZmViMzRiY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZThjMmE3Mjg3YjM4ZTU2NDJiODU3Yjg5YjIxZWI1ZTZhMGJlMjNmZTFjZWI4NDA1NGU2YTgwZTJjYTQyYjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1ZDQ2NjNlOTIzNTFkZTE3NjQ2M2E4ZjEyYmNiOTRmZDU3NTllYjA3YzkyZDkzMTg4NDAyNGVmZDk5MzJmMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjNTMwNTMzZTU0ZGI1YjZkY2MyZTIzMzAwOTU3ZDk5NWZlZGZhM2YzN2VlYWJkMTgzYTkwYTQ0YTQxODcyYzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_482ae9389d4a43f699fde8cf5b0638a5",
+      "statement": "linkPlugins runs in two passes over profiles/common/plugins: a relative per-profile symlink (../../common/plugins/<plugin>) into each profile's plugins/, and an absolute-source global symlink into ~/.hermes/plugins; hidden dot-directories are excluded from both passes.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L104-L143",
+          "version": "repo-lines-v1:sha256:5440d94fe9dac3735bc8d577f4d09631a2da8c7e4ac066693f2ffcfc0399428c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMGQxMzYwMzljOWFiMGE0MGM1ZDU4ODY4ZmEwOTBmY2Q3ZGY0N2ZkNjk2NDEwNmEwMmIyY2Q2ZTc2NjUxZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNGYyYWVmNTEwYzQzMTJlZWM0MWMxYTNhZTBjNjBiODQyMDY3MzI5ZjM0OWYzOThlMTZjNDFiZmM0Y2M1ZTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4OWU2YzZiYTMwY2U1MDRhNmNkMGI1YTQ4YzhhMzNhMTQ4ZGU0MWM5MDUxNDBhMWRkYmI3OGVmOWY2YWNhNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMjUyYjU4OWMwOWYwMDY1OGVlZGI3OTlkNDczNDYwMDliNTY3YmIxZWIwMTU2YjFiOGNkOWFiODJmOWFiNTUifQ"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L182-L202",
+          "version": "repo-lines-v1:sha256:a8329e5cc269f554c2f76f851a813265a5f66e58d7dd81392a0ec0267c1cc5eb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMTFiMTQwNmQ3YWMxNTRlMDY4NjYzY2UzNWQwZDI0OWEyNzdiZmUxYjViMzg3ZWY5MmRmNzVhYTk1NzgxNTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYWJkOTg0MjliYTVlNDYxN2I3NzhkNDA4YTM0MjRjYmZjOWVjOGE1MDgxZWY2Nzg2YTI1ZDc5OTgxZGNmMzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZmMWQyMGU1ODQ2NzdiMzAwZWQyY2EyMzQxODk2NWQxMDkyMzdjOGY0YWY1OTJhZGUwYzE1Y2Y0MzIxY2Q5NzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d9db7061938f4366aae93f691699dc5d",
+      "statement": "linkHermes creates a single absolute symlink from the workspace <rootDir>/profiles directory to ~/.hermes/profiles, making the whole workspace the Hermes home's profiles directory, and throws when the profiles source directory is missing.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L212-L243",
+          "version": "repo-lines-v1:sha256:345165190b25304f7c572b649f003f153c3675672e4a7470905343164fff3726:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5OGE1ZDg3NjhjZGQ4MDQwOGU4YWY2NjhkYWI0ZDczNzhjZTZjYWEzMzY1MjRiMDMyYjVhZGVlNWE1NzQwZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1MzlkYzViZjA0MDhlNGE0NzkyMTdiYzMxN2I5MjBjYWI5ZjE3OGYyZGIyZmYyMmVmYmM4YTc1NDUxMTBiZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5c8f73d5941140998842858856491082",
+      "statement": "The -p/--profiles option is a scope gate: when a non-empty explicit profile list is passed, linkPlugins skips the global ~/.hermes/plugins pass entirely (explicitlyTargeted = profiles && profiles.length > 0), so a scoped run makes no machine-wide Hermes home write; the CLI pluginsLinkBanner mirrors this by reporting 'targeted profile(s) only' for a targeted run.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L292-L297",
+          "version": "repo-lines-v1:sha256:3853f6fd6a99590524e8abf9b49da5413236e9147e918efc5617f689b9fc4202:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjczNjdiNzI3ZWU0OTZjY2NhZGNjYzI0ZGEzZjE3NzU5OTg3OTIyNzM2OTRiZTkzYmQ5OGYzMzM0MzcyNjA3MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDRiYzYwMWM4NzVmZjczMDU3NWFlOTk2MjBlZGMwZjAyZTg4ZTcxMDAwMzliZWVhNzg4ZGMyNTRiNTM4ZGI5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTZmMzhmM2M1NjllYTE5OTgwZDFjYjEzMTBlMTBmOTQyNWU5Zjk4YjBkYTg1NWM2NzI1ODBhYTY5ZjY4ZGRkOSJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L165-L171",
+          "version": "repo-lines-v1:sha256:4238b14057eaa4633d7d05211f3c3884e03c8ea5c809d172908998b51e4e2859:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU0NDg1NjA3ZDdlOTZmODY0MTQ4NDdiY2MyZGYwNWI5MDMwNWRhOGVkMmE5ODlmYTM0NzY3OTYyNmZjMWFjNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODYxODcyN2VjYTg2ZDM1ZGNjY2ZhNWU2OTllZDkzYjYxNmVlNWRmNjY3MDJkYjlmMTAxMjExMDI3MzY2OGEyYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTdkODYzMmU1NGU5Mjk4YWJiOTU4NzI3ZTJkNTE0MDhhYmFmMTM2NjAzNTM3OTEwMTQwYWJmNjViMzBhYjYxMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTM1NWRlZjU5NjMyYjFmYTkyMjlhZjBhYjgyOGI0NzRlZGU3ODZhMmNmODVkMGFhMWViZDg5YzAyNmNhNDMyNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_be39410328254543b304ce3f9823fd96",
+      "statement": "linkSkills and linkPlugins deliberately have no no-targets guard, unlike the merge steps: an empty workspace is a successful no-op there, returning an empty result list.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/profile-targets.ts#L71-L74",
+          "version": "repo-lines-v1:sha256:7b3dfa24ca70ce598f4148e6b502d97ed9ca672051d7a892eedc9a7716c4d4b3:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjIzY2I0YzEzZDY3NzU5ZDU0Zjc2NzFkNDQwMzQ5NzJkMDkwM2EzOWQwOGFmYWU3M2JiOTgxZWI5YWIwZGNmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FlMjJkMmU5ZDlmZGY5Y2QxZjU2MjNlZGE0MWMwODU1OTM4YTg5ZTkyYzM0NzhkMGYwY2ViNzhkOTliNGE4ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjE1NzM4ZWZjZWUyNGUzYzJjNWQ5Y2QwMjdjOWQ5YzdmY2IxMDExOWY1YzY4NzE5ZjIxZDE0Yjc3ZjFlOThlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzNlZTk0NjQ3ZDc2ZDZlNjU5NThhNGE1OGUwNGY4OTM4ZDcyY2U0NWZkZjFhY2MzOGM2MjNlZmYyZGU2MDViZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e1b60e028efa45fa9248e28f2c0142b5",
+      "statement": "The Hermes home directory is resolved as options.hermesDir || process.env.HERMES_HOME || ~/.hermes, with CLI --hermes-dir winning, then the $HERMES_HOME env var, then the default ~/.hermes.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L106-L106",
+          "version": "repo-lines-v1:sha256:cc32b3f5b821f6e31590fb648095a7f97d009c249e0fd224e706267dd1aaf0f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzMmIzZjViODIxZjZlMzE1OTBmYjY0ODA5NWE3Zjk3ZDAwOWMyNDllMGZkMjI0ZTcwNjI2N2RkMWFhZjBmOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzMmIzZjViODIxZjZlMzE1OTBmYjY0ODA5NWE3Zjk3ZDAwOWMyNDllMGZkMjI0ZTcwNjI2N2RkMWFhZjBmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjgwY2NlOTRiM2Q4ZTk1MDA1ZjE2MDhiYzNjNzkyMDRiMWIzNGQzMTUxZTdhNTYzZjNjOTA3NGMxODA5ODhjZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGUyYWZhNTlhZjdhNzFjNjZiZTcwYjViNjAxM2YxNTkxNmI2OTk3MjA1OWQzMTFjNDhlODk1NjcyMWU2NmY5NCJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L214-L214",
+          "version": "repo-lines-v1:sha256:cc32b3f5b821f6e31590fb648095a7f97d009c249e0fd224e706267dd1aaf0f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzMmIzZjViODIxZjZlMzE1OTBmYjY0ODA5NWE3Zjk3ZDAwOWMyNDllMGZkMjI0ZTcwNjI2N2RkMWFhZjBmOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzMmIzZjViODIxZjZlMzE1OTBmYjY0ODA5NWE3Zjk3ZDAwOWMyNDllMGZkMjI0ZTcwNjI2N2RkMWFhZjBmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2IxOTJjNDYwYTg4NTVhYjkyNjdjNjYyZjBlOGYyYjA5M2JhYmY1MWJmNmMxNTJmNDZlNDFiMmZiNDlmYWVmNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDVmMGNkMThhZTIzMzk4MDhjNDYyOWM5Y2M0NzViOTJkNDZhYTgyM2RlZjBiODY2ZmQzYjQ4ZGIyYTRhYmEwNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bc20d674b79b45b79208a3866a54359e",
+      "statement": "linkPlugins (global pass) and linkHermes apply assertPathInBase(hermesDir, dest) before writing, so a hostile --hermes-dir or $HERMES_HOME base value cannot redirect the write outside the intended Hermes home.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L175-L175",
+          "version": "repo-lines-v1:sha256:40f6bd117c925a1404f966b474154dd0b7a9016208247d5839fa5f8d3434ff2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBmNmJkMTE3YzkyNWExNDA0Zjk2NmI0NzQxNTRkZDBiN2E5MDE2MjA4MjQ3ZDU4MzlmYTVmOGQzNDM0ZmYyYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBmNmJkMTE3YzkyNWExNDA0Zjk2NmI0NzQxNTRkZDBiN2E5MDE2MjA4MjQ3ZDU4MzlmYTVmOGQzNDM0ZmYyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTM1NWRlZjU5NjMyYjFmYTkyMjlhZjBhYjgyOGI0NzRlZGU3ODZhMmNmODVkMGFhMWViZDg5YzAyNmNhNDMyNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjA1YzBiN2Y1ZWU2YjUyOWM3OTQ3NDMwZGJmNDk1YjBlZTYzZjFhZTUzOTFiZDAzMDRjNTZhOWU2YTg2YWI4NyJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L221-L221",
+          "version": "repo-lines-v1:sha256:5498ce7d1fe559bd2b0ba5330dccc99d5dab3ffdda0223807f80016d92008caf:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTQ5OGNlN2QxZmU1NTliZDJiMGJhNTMzMGRjY2M5OWQ1ZGFiM2ZmZGRhMDIyMzgwN2Y4MDAxNmQ5MjAwOGNhZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTQ5OGNlN2QxZmU1NTliZDJiMGJhNTMzMGRjY2M5OWQ1ZGFiM2ZmZGRhMDIyMzgwN2Y4MDAxNmQ5MjAwOGNhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzdkY2EzZDg2ZWE1NjBjZjZlZWFmNGRhMTA2MDliYTZjZDhlY2U2ZTAwYmZhNjIxMGMyMGI5NDc3YzU5YjgwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzY4MjljMjZmNDhhNGZjMjJjNzFjODdlN2M5ZTVmNjYyMjc5YWViODJjMWUwOTBjNzUwMGQxZTU0YTc1OTQyNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ed4b348c4e584f55b00148beb6988455",
+      "statement": "ensureSymlinkSync is idempotent: it is a no-op when the path already points at the target, replaces a symlink pointing elsewhere, removes a plain-file collision (logging it), and NEVER deletes a real directory — it renames it aside to a unique <path>.hpm-backup.<timestamp> sibling and logs a WARNING before creating the symlink.",
+      "evidence": [
+        {
+          "resource": "repo://src/utils/fs-helpers.ts#L45-L75",
+          "version": "repo-lines-v1:sha256:8995bda8ae73c322a8875a1eb1a693f3ed14803c65e855cfca5858905807f17d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4Y2QzNGQ4YTEwNThkMDRiYzJiMjQ4ZDY0OTQ5MDY3MzIzMmNiNTUyMTE1ZGUxOWU4OWI0ZDhjY2FjYzA3ZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzNGNlNzdmMjVmMzUzNzE4NzE0ZDlhZjJjYmU0NDA3N2ZjODc0NDA2MDgzZTU0ODczOTg0NTQ4NDc5YjUyNmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjNjgxMDM2YTJlYzliODhmNWE1YTY4YzBlYTViMTQwOTgzZDA5Nzk4MTEzZWE2MmYzYzY4MjBmNWE4NWFhOTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_89042ba6113246d3b7bede01a0ed2e6c",
+      "statement": "Each link destination directory is swept with pruneStaleSymlinks before linking to remove dangling symlinks from deleted/renamed common resources; the sweep runs only after the path-safety guards and, for the global plugins dir, only on the untargeted path, so a scoped run never touches the global dir.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/links.ts#L137-L139",
+          "version": "repo-lines-v1:sha256:fa71ed8c41c85bc0d75bc8101aa097c549a592c3a032c2ca3437954477ade49f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODUxNzczNGEwOTcwMzdmMWFiMGVkYWQyMzAzODZhYTc4NmIxYTczOGRiYzg3MjkwMmIxOWU2NWYxMTk2MGVkYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDYzYzZkZjE3ODg5NGZkMGJmMjYzYzE4YmI3YzVlZDc1MjhlMzJlMTVjYTA3N2E2NWFiZGIyN2FlMmViMzA3NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGNiMzExMTFjYTcxMjY0Yzc1YjA0YWZkNGE3MjZmZGRkMWVlNDViNGI3MmM4NDg5NGYzYmFiMWYxZGNmYTc1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjgxNmI2MGVjMTBiYzY0N2YyZjdkOTdkNzVkZmI4ODk1MjQ1NjgyNDljYjYyYTEyZTU1YTU4MDlmZDEzMGFkYyJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L176-L180",
+          "version": "repo-lines-v1:sha256:57b43196961cf61ad7a1c506bc77e678ad25c9469cc511a5cb20c12e389393c3:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODUxNzczNGEwOTcwMzdmMWFiMGVkYWQyMzAzODZhYTc4NmIxYTczOGRiYzg3MjkwMmIxOWU2NWYxMTk2MGVkYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2Q3NmM5ZmRiNjBhZTA0NzYzNjY0MTMyMzIxYWYyZGY5NWQxMWQ1ODVkNWFiN2RiNmFkYWUyOWI5ZTU2YWU3OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDE1NzcyYTY0OGVmNzA2YjBkMDIwYjM2MmFlZjViOTQ1OTZjYThmMDBmMTMwMjkzYmRmNzNmODFiNTMxZTg3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTk2MmMwMzlkMTUzMGQzODA0NGIyM2UxN2ExYjI0NjFiZmMwZDBmZTlhYTBmYmY1MmZhZGQ4N2Q1N2I5MTZlNCJ9"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L59-L61",
+          "version": "repo-lines-v1:sha256:bef9002ee93cbb5e6280bc8ab2c7662c03acf5e7b7f5d58a24af6f15bf358408:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmJlNjJjNGU5Y2NlMjBiM2YyZWQ0N2JiMzE3MWE1MDFlZjZhMjVjZGMxNmE5NWU2Mjk5ODEyMWNlNzMzOTZjMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWIwZjk3NWNmZWUwYzdjMDhkZjBiOWI5MmViZTM5NDNiOGZiNzQxN2M4YTk3YjY3MTUxNzc1MDI2MmIzNDM1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjE3YjQxNDFkYWM1MGE0NTViZTg3ZDZlYzJlNDIyZWRlZGNkN2RkYTU5N2Y3Zjk0YzAzZjA2MzU3YThkODIxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTkxNGY2MWNmN2E1ZDlmN2I3NzM5YmZiZjg4ZjcxNWQ1NTBlNTc1Nzk1M2U3NDk1ZGRlMjRlZWI1YjkxZWVkMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_fc3fb434f07e41edbf1749a1935d8c8d",
+      "statement": "linkAll runs linkSkills, linkPlugins, and (only when includeHermesLink is set) linkHermes each in its own try/catch, collecting failures into linkErrors instead of throwing, so the aggregate syncAll always returns and the CLI can report merge results and link failures together.",
+      "evidence": [
+        {
+          "resource": "repo://src/core/sync.ts#L118-L145",
+          "version": "repo-lines-v1:sha256:65d37400f1f35890f301571c0d2efed19e07de908610445c4659b91f7fcf8653:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmNDQ5ZmM3MmQ2Zjk0Y2UxM2RlZDY5NmZkNDBmYmRhZmRmMzZkMzk4MWExMTQ2OWIwNmNkMTJkMjhlMDVjOWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRkZWFhMmVlZmE0NDczNmZmZDI0ODA3ZDFhNzAzNjQ3MDE0OTgwNDRjODhjZmFiM2Y3MDJmMzY4YmM3NDk0NTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg2OTcyNGNhOGFhYjhlNjU0MTg2ZWZkOWU4MjVkNDYxYmQ4MmE2NDZmNWI1ZTc4ZWRjMzVkZjkyNDI4ZTZkMmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_96f17acad7904611b30300d2f40c9266",
+      "statement": "linkSkills/linkPlugins return LinkResult[] entries ({source, destination, type, profile?}) and linkHermes returns a single LinkResult; standalone single-step link command failures (the functions throw on a missing source) are converted by the CLI's safeLink into a one-line stderr error and exit 1, while aggregate linkErrors are reported by finishLinkErrors.",
+      "evidence": [
+        {
+          "resource": "repo://src/cli.ts#L272-L283",
+          "version": "repo-lines-v1:sha256:f1352b03cd657339382360989a37fe00c21cf992db6be57026a14a42d3467ea2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4OWE1MTMxODZmYWQ1YzU0YzBhNzAzNDhkN2YzYmEyNTlkMmVmZjRhYTZhY2VhOTdlOWI4NTNkMzRlYjUxZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5MjY0MjVmZTE0MWUxOWM1NGY3YzljOTk1MmM2ZjljMDhmMWYxNjAwZjVjZGZkZjk4ZGI1YmY5ZmZmYzliMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjYjFmMTcyMjQ4ZTExNzU0MjJmNGVkYTJkZTU2NGUzOTJmMTQ0MGIyZWQzNWVhNzFkNTg2OGUwNzQzZWRkMjcifQ"
+        },
+        {
+          "resource": "repo://src/core/links.ts#L16-L21",
+          "version": "repo-lines-v1:sha256:bedef2b59c3c5b7845bae310b51e84d640f2056587dcaeb308b52bccf180e649:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDhiNGJmMTkxM2UzZGE2NjUyMTA0MWMxZTM5MTRmNWIyYjMwMWFjOWNmMmI2MmY5M2ZhMDEzMmNkODUzYjkzYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzdkYWZhYzAyMGVlMTFhMzAxMTdiNTA3ZWQ1NTIxOGNjMGQ4ZDI5NGMzZGRmNWE5N2M3ZGRjZTNlMWVkM2RhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTY3ZjBhMTNmZjU4MzRkZjI2NTIxYWExMWVkMWE5MjdiYjA2NTQxOTk2YmI4OTkwZjI2NWU1NWM0OGQzYmM4ZSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.6.0",
+    "at": "2026-10-01T18:53:53.575Z"
+  }
+}

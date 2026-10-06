@@ -30,25 +30,31 @@ describe('mergeConfig', () => {
     // Setup profiles/common/config.yaml
     const commonDir = path.join(tmpDir, 'profiles', 'common');
     fs.mkdirSync(commonDir, { recursive: true });
-    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `
+    fs.writeFileSync(
+      path.join(commonDir, 'config.yaml'),
+      `
 name: common
 models:
   - name: default
     provider: openai
     model: gpt-4
 timeout: 30
-`);
+`,
+    );
 
     // Setup profiles/worker/config.custom.yaml
     const workerDir = path.join(tmpDir, 'profiles', 'worker');
     fs.mkdirSync(workerDir, { recursive: true });
-    fs.writeFileSync(path.join(workerDir, 'config.custom.yaml'), `
+    fs.writeFileSync(
+      path.join(workerDir, 'config.custom.yaml'),
+      `
 name: worker
 tools:
   - terminal
   - web
 timeout: 60
-`);
+`,
+    );
 
     const results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
     assert.equal(results.length, 1);
@@ -79,11 +85,20 @@ timeout: 60
     assert.equal(results[0].status, 'merged');
 
     // No output file was written.
-    assert.ok(!fs.existsSync(path.join(workerDir, 'config.yaml')), 'dry-run must not write config.yaml');
+    assert.ok(
+      !fs.existsSync(path.join(workerDir, 'config.yaml')),
+      'dry-run must not write config.yaml',
+    );
     // The log line must not claim the file was written.
-    assert.ok(!lines.some((l) => l.includes('written to')), `no "written to" claim in:\n${lines.join('\n')}`);
+    assert.ok(
+      !lines.some((l) => l.includes('written to')),
+      `no "written to" claim in:\n${lines.join('\n')}`,
+    );
     // And it phrases the write as a preview.
-    assert.ok(lines.some((l) => l.includes('Would merge config to:')), `preview wording missing in:\n${lines.join('\n')}`);
+    assert.ok(
+      lines.some((l) => l.includes('Would merge config to:')),
+      `preview wording missing in:\n${lines.join('\n')}`,
+    );
   });
 
   it('throws when common config is missing', () => {
@@ -107,7 +122,7 @@ timeout: 60
     fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
     assert.throws(
       () => mergeConfig({ rootDir: tmpDir, logger: () => {} }),
-      /No profiles found under/
+      /No profiles found under/,
     );
   });
 
@@ -130,17 +145,23 @@ timeout: 60
         assert.ok(err instanceof Error);
         assert.match(err.message, /Invalid profile name: "\.\.\/\.\.\/pwned"/);
         return true;
-      }
+      },
     );
     // The escaped output file must NOT have been written...
     assert.ok(
       !fs.existsSync(path.join(escapeDir, 'config.yaml')),
-      `no file may be written outside the workspace (found: ${escapeDir}/config.yaml)`
+      `no file may be written outside the workspace (found: ${escapeDir}/config.yaml)`,
     );
     // ...and the workspace itself was not touched either (no profiles/ tree).
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
     // The pre-seeded source is untouched (not consumed by the rejected merge).
-    assert.ok(fs.existsSync(path.join(escapeDir, 'config.custom.yaml')), 'pre-seeded source untouched');
+    assert.ok(
+      fs.existsSync(path.join(escapeDir, 'config.custom.yaml')),
+      'pre-seeded source untouched',
+    );
   });
 
   it('rejects other traversal-shaped profile names (.., ./x, a/b) with the same clean error', () => {
@@ -148,11 +169,57 @@ timeout: 60
       assert.throws(
         () => mergeConfig({ rootDir: tmpDir, profiles: [name], logger: () => {} }),
         /Invalid profile name/,
-        `expected "${name}" to be rejected`
+        `expected "${name}" to be rejected`,
       );
     }
     assert.ok(!fs.existsSync(pwnedDir()), 'nothing may have been written outside the workspace');
-    assert.ok(!fs.existsSync(path.join(tmpDir, 'profiles')), 'workspace must not have been modified');
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
+  });
+
+  it('rejects the reserved profile name "common" BEFORE any read of the shared base', () => {
+    // RESERVED-NAME REGRESSION (probe 2 of zf-hpm-e420a204): profiles/common/
+    // is the SHARED base source. Without the reservation, `mergeConfig -p
+    // common` would read profiles/common/config.yaml and write the merge BACK
+    // onto itself (self-merge, non-convergent). The reserved name must be
+    // rejected during the up-front profile validation loop — which runs
+    // BEFORE any read of the base source — with the dedicated reserved
+    // message (not the generic path-safety one).
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, profiles: ['common'], logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Invalid profile name: "common"/);
+        assert.match(err.message, /reserved for the shared common profile directory/);
+        return true;
+      },
+    );
+    // No workspace was created or modified at all.
+    assert.ok(
+      !fs.existsSync(path.join(tmpDir, 'profiles')),
+      'workspace must not have been modified',
+    );
+  });
+
+  it('still accepts "common-worker" as a target profile name (exact-match reservation)', () => {
+    // Set up the shared base and a real per-profile custom source for a
+    // profile whose name merely contains "common" — it must NOT be rejected.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    const profileDir = path.join(tmpDir, 'profiles', 'common-worker');
+    fs.mkdirSync(profileDir, { recursive: true });
+    fs.writeFileSync(path.join(profileDir, 'config.custom.yaml'), `name: common-worker\n`);
+
+    const results = mergeConfig({ rootDir: tmpDir, profiles: ['common-worker'], logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'common-worker');
+    assert.equal(results[0].status, 'merged');
+    assert.ok(fs.existsSync(path.join(profileDir, 'config.yaml')));
+    // The shared base config is untouched (not self-merged).
+    assert.equal(fs.readFileSync(path.join(commonDir, 'config.yaml'), 'utf8'), `model: "base"\n`);
   });
 
   it('returns a per-profile error entry (no top-level throw) when a DISCOVERED profile has an invalid config.custom.yaml', () => {
@@ -185,7 +252,7 @@ timeout: 60
         results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
       },
       /No profiles with valid config\.custom\.yaml/,
-      'an exists-but-invalid custom source must not trigger the generic top-level throw'
+      'an exists-but-invalid custom source must not trigger the generic top-level throw',
     );
     // ...it must return the specific per-profile error entry instead.
     assert.equal(results.length, 1);
@@ -213,5 +280,66 @@ timeout: 60
     assert.equal(results.length, 1);
     assert.equal(results[0].status, 'error');
     assert.match(results[0].error ?? '', /not a valid YAML object/);
+  });
+
+  it('records a ONE-LINE, path-including error entry when a custom config FAILS TO PARSE', () => {
+    // REGRESSION (raw YAML parse error leak): a malformed
+    // config.custom.yaml used to surface the raw multi-line YAMLParseError
+    // (source snippet + caret, NO file name) as the per-profile `error`.
+    // The entry must now be a single line that names the file.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    fs.writeFileSync(path.join(commonDir, 'config.yaml'), `model: "base"\n`);
+    const badDir = path.join(tmpDir, 'profiles', 'bad');
+    fs.mkdirSync(badDir, { recursive: true });
+    const customPath = path.join(badDir, 'config.custom.yaml');
+    fs.writeFileSync(customPath, `model: [unclosed\n`);
+
+    const results = mergeConfig({ rootDir: tmpDir, logger: () => {} });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].profile, 'bad');
+    assert.equal(results[0].status, 'error');
+    const err = results[0].error ?? '';
+    assert.match(err, /Custom config is not valid YAML/);
+    // The error must name the offending file ...
+    assert.ok(err.includes(customPath), `error must include the absolute path:\n${err}`);
+    // ... be a SINGLE line (the raw parse error spans 5+ lines) ...
+    assert.ok(!err.includes('\n'), `error must be one line:\n${err}`);
+    // ... and must not leak the raw source snippet or the caret line.
+    assert.ok(!err.includes('model: [unclosed'), `no raw source snippet:\n${err}`);
+    assert.ok(!/^\^$/m.test(err), `no raw caret line:\n${err}`);
+    assert.ok(
+      !fs.existsSync(path.join(badDir, 'config.yaml')),
+      'nothing written for the failing profile',
+    );
+  });
+
+  it('throws a ONE-LINE, path-including error when the COMMON config fails to parse', () => {
+    // REGRESSION (top-level parse leak): malformed profiles/common/config.yaml
+    // used to propagate the raw multi-line YAMLParseError with no file name.
+    // mergeConfig must now throw a single-line error naming the file.
+    const commonDir = path.join(tmpDir, 'profiles', 'common');
+    fs.mkdirSync(commonDir, { recursive: true });
+    const commonPath = path.join(commonDir, 'config.yaml');
+    fs.writeFileSync(commonPath, `model: [unclosed\n`);
+
+    assert.throws(
+      () => mergeConfig({ rootDir: tmpDir, logger: () => {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Common config is not valid YAML/);
+        assert.ok(
+          err.message.includes(commonPath),
+          `must name the common config path:\n${err.message}`,
+        );
+        assert.ok(!err.message.includes('\n'), `must be one line:\n${err.message}`);
+        assert.ok(
+          !err.message.includes('model: [unclosed'),
+          `no raw source snippet:\n${err.message}`,
+        );
+        assert.ok(!/^\^$/m.test(err.message), `no raw caret line:\n${err.message}`);
+        return true;
+      },
+    );
   });
 });
