@@ -83,6 +83,30 @@ describe('findProjectRoot', () => {
     assert.equal(findProjectRoot(sib), path.resolve(sib));
   });
 
+  it('a FILE named profiles/common is not a marker — no false-positive root, and it does not stop the upward walk', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpm-test-rootfinder-'));
+
+    // Case 1: start/profiles/ is a real dir but start/profiles/common is a plain FILE.
+    const start = path.join(tmpDir, 'start');
+    fs.mkdirSync(path.join(start, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(start, 'profiles', 'common'), 'stray file');
+    // No real marker anywhere above, so the fallback (startDir) must be returned.
+    assert.equal(findProjectRoot(start), path.resolve(start));
+
+    // Case 2: walk-up — an intermediate ancestor has a FILE marker, a HIGHER
+    // ancestor has the real profiles/common/ DIRECTORY. The walk must skip the
+    // file marker and return the higher ancestor.
+    const high = path.join(tmpDir, 'high');
+    fs.mkdirSync(path.join(high, 'profiles', 'common'), { recursive: true });
+    const mid = path.join(high, 'mid');
+    fs.mkdirSync(path.join(mid, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(mid, 'profiles', 'common'), 'stray file');
+    const deep = path.join(mid, 'x', 'y');
+    fs.mkdirSync(deep, { recursive: true });
+
+    assert.equal(findProjectRoot(deep), high);
+  });
+
   it('resolves to the workspace root from a deep nested start point (profiles/<name>/cron)', () => {
     const root = makeWorkspace();
     const start = path.join(root, 'profiles', 'agent-a', 'cron');
